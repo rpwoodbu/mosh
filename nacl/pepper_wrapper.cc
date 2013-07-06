@@ -15,11 +15,64 @@
 
 #include "pepper_wrapper.h"
 
+#include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/module.h"
+#include "ppapi/cpp/var.h"
+
+// Implement stubs for functions not in NaCl's libc.
+extern "C" {
+
+// These are used to avoid CORE dumps. Should be OK to stub them out.
+int getrlimit(int resource, struct rlimit *rlim) {
+  return 0;
+}
+int setrlimit(int resource, const struct rlimit *rlim) {
+  return 0;
+}
+
+// TODO: sigaction is used for things like catching window size changes. This
+// will need to be redirected.
+int sigaction(int signum, const struct sigaction *act,
+    struct sigaction *oldact) {
+  return 0;
+}
+
+// kill() is used to send a SIGSTOP on Ctrl-Z, which is not useful for NaCl.
+int kill(pid_t pid, int sig) {
+  return 0;
+}
+
+} // extern "C"
+
+// TODO: Implement something useful.
+
+class MoshClientInstance : public pp::Instance {
+ public:
+  explicit MoshClientInstance(PP_Instance instance) : pp::Instance(instance) {}
+  virtual ~MoshClientInstance() {}
+
+  virtual void HandleMessage(const pp::Var& var) {
+    if (!var.is_string()) {
+      return;
+    }
+    if (var.AsString() == "hello") {
+      PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
+    }
+  }
+};
+
+class MoshClientModule : public pp::Module {
+ public:
+  MoshClientModule() : pp::Module() {}
+  virtual ~MoshClientModule() {}
+
+  virtual pp::Instance* CreateInstance(PP_Instance instance) {
+    return new MoshClientInstance(instance);
+  }
+};
 
 namespace pp {
 Module* CreateModule() {
-  // TODO: Implement this.
-  return NULL;
+  return new MoshClientModule();
 }
 } // namespace pp

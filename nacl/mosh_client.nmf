@@ -1,0 +1,48 @@
+{
+  "program": {
+    "x86-64": {"url": "lib64/lib/runnable-ld.so"},
+    "x86-32": {"url": "lib32/lib/runnable-ld.so"}
+  },
+  "files": {
+    "libpthread.so.b7d4c72d": {
+      "x86-64": {"url": "lib64/lib/libpthread.so.b7d4c72d"},
+      "x86-32": {"url": "lib32/lib/libpthread.so.b7d4c72d"}
+    },
+    "libppapi_cpp.so": {
+      "x86-64": {"url": "lib64/lib/libppapi_cpp.so"},
+      "x86-32": {"url": "lib32/lib/libppapi_cpp.so"}
+    },
+    "libstdc++.so.6": {
+      "x86-64": {"url": "lib64/lib/libstdc++.so.6"},
+      "x86-32": {"url": "lib32/lib/libstdc++.so.6"}
+    },
+    "libm.so.b7d4c72d": {  
+      "x86-64": {"url": "lib64/lib/libm.so.b7d4c72d"},
+      "x86-32": {"url": "lib32/lib/libm.so.b7d4c72d"}
+    },
+    "libgcc_s.so.1": {
+      "x86-64": {"url": "lib64/lib/libgcc_s.so.1"},
+      "x86-32": {"url": "lib32/lib/libgcc_s.so.1"}
+    },
+    "libc.so.b7d4c72d": {  
+      "x86-64": {"url": "lib64/lib/libc.so.b7d4c72d"},
+      "x86-32": {"url": "lib32/lib/libc.so.b7d4c72d"}
+    },
+    "libz.so.1": {
+      "x86-64": {"url": "lib64/usr/lib/libz.so.1"},
+      "x86-32": {"url": "lib32/usr/lib/libz.so.1"}
+    },
+    "libprotobuf.so.8": {
+      "x86-64": {"url": "lib64/usr/lib/libprotobuf.so.8"},
+      "x86-32": {"url": "lib32/usr/lib/libprotobuf.so.8"}
+    },
+    "librt.so.b7d4c72d": {  
+      "x86-64": {"url": "lib64/lib/librt.so.b7d4c72d"},
+      "x86-32": {"url": "lib32/lib/librt.so.b7d4c72d"}
+    },
+    "main.nexe": {
+      "x86-64": {"url": "mosh_client_x86_64.nexe"},
+      "x86-32": {"url": "mosh_client_x86_32.nexe"}
+    }
+  }
+}

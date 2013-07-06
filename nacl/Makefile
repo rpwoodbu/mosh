@@ -42,17 +42,20 @@ LIBS:=\
 	-lmoshutil \
 	-lmoshprotos
 
-# Project Build flags
-override LDFLAGS+=-lppapi_cpp -lz -lssl -lncurses -lprotobuf -lcrypto -lrt \
-	$(LIBDIRS)
-override WARNINGS+=-Wno-long-long -Wall -Wswitch-enum -Werror
-override CXXFLAGS+=-pthread -std=gnu++0x $(WARNINGS) -Iinclude \
-        -I$(NACL_SDK_ROOT)/include
-override CFLAGS+=-pthread $(WARNINGS) -Iinclude -I$(NACL_SDK_ROOT)/include
-
 OSNAME:=$(shell python $(NACL_SDK_ROOT)/tools/getos.py)
 TC_PATH:=$(abspath $(NACL_SDK_ROOT)/toolchain/$(OSNAME)_x86_glibc)
 CXX:=$(TC_PATH)/bin/i686-nacl-g++
+
+# Project Build flags
+override LDFLAGS+=-lppapi_cpp -lz -lssl -lncurses -lprotobuf -lcrypto -lrt \
+	$(LIBDIRS)
+# Add this linker flag to build statically:
+	#-static -T $(TC_PATH)/x86_64-nacl/lib/ldscripts/elf64_nacl.x.static
+#override WARNINGS+=-Wno-long-long -Wall -Wswitch-enum -Werror
+#override CXXFLAGS+=-pthread -std=gnu++0x $(WARNINGS) -Iinclude \
+        -I$(NACL_SDK_ROOT)/include
+override CXXFLAGS+=-pthread $(WARNINGS) -I$(NACL_SDK_ROOT)/include
+#override CFLAGS+=-pthread $(WARNINGS) -Iinclude -I$(NACL_SDK_ROOT)/include
 
 COMPAT_INC:=-I$(PNACL_TC_ROOT)/usr/include/glibc-compat
 PNACL_CXXFLAGS:=$(CXXFLAGS) -DUSE_NEWLIB $(COMPAT_INC)
