@@ -48,30 +48,18 @@ export PKG_CONFIG_PATH=${PKG_CONFIG_LIBDIR}/pkgconfig
 export PATH=${NACL_BIN_PATH}:${PATH};
 
 pushd .. > /dev/null
-
 if [[ ! -f configure ]]; then
   echo "Running autogen."
   ./autogen.sh
 fi
-
 echo "Configuring..."
 ./configure --host=nacl --prefix=${NACLPORTS_PREFIX}
 #./configure --host=nacl --prefix=${NACLPORTS_PREFIX} --disable-silent-rules
 make clean
-
 echo "Building Mosh with NaCl compiler..."
 make || echo "Ignore error."
-
-pushd src/frontend > /dev/null
-$AR rcs libmoshclient-${NACL_ARCH}.a \
-  mosh-client.o stmclient.o terminaloverlay.o ../crypto/libmoshcrypto.a \
-  ../network/libmoshnetwork.a ../statesync/libmoshstatesync.a \
-  ../terminal/libmoshterminal.a ../util/libmoshutil.a \
-  ../protobufs/libmoshprotos.a
-popd > /dev/null
-
-# TODO: Actually build the .nexe, probably using a Makefile.
-
 popd > /dev/null # ..
+echo "Building .nexe..."
+make
 
-echo "Done building (WARNING: incomplete script)."
+echo "Done."
