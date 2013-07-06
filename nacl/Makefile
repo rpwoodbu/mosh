@@ -47,8 +47,8 @@ TC_PATH:=$(abspath $(NACL_SDK_ROOT)/toolchain/$(OSNAME)_x86_glibc)
 CXX:=$(TC_PATH)/bin/i686-nacl-g++
 
 # Project Build flags
-override LDFLAGS+=-lppapi_cpp -lz -lssl -lncurses -lprotobuf -lcrypto -lrt \
-	$(LIBDIRS)
+override LDFLAGS+=-lppapi_cpp -lppapi -lz -lssl -lncurses -lprotobuf -lcrypto \
+	-lrt $(LIBDIRS)
 # Add this linker flag to build statically:
 	#-static -T $(TC_PATH)/x86_64-nacl/lib/ldscripts/elf64_nacl.x.static
 #override WARNINGS+=-Wno-long-long -Wall -Wswitch-enum -Werror

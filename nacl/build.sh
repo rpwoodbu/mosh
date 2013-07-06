@@ -46,6 +46,9 @@ export RANLIB=${NACLRANLIB}
 export PKG_CONFIG_LIBDIR=${NACLPORTS_LIBDIR}
 export PKG_CONFIG_PATH=${PKG_CONFIG_LIBDIR}/pkgconfig
 export PATH=${NACL_BIN_PATH}:${PATH};
+# TODO: See if there's a way to get the linker to prefer main() in libppapi
+# instead of using this hack.
+export CXXFLAGS="-D__NACL__"
 
 pushd .. > /dev/null
 if [[ ! -f configure ]]; then
@@ -53,13 +56,14 @@ if [[ ! -f configure ]]; then
   ./autogen.sh
 fi
 echo "Configuring..."
-./configure --host=nacl --prefix=${NACLPORTS_PREFIX}
-#./configure --host=nacl --prefix=${NACLPORTS_PREFIX} --disable-silent-rules
-make clean
+./configure --host=nacl --prefix=${NACLPORTS_PREFIX} \
+  --enable-client=yes --enable-server=no # --disable-silent-rules
 echo "Building Mosh with NaCl compiler..."
+make clean
 make || echo "Ignore error."
 popd > /dev/null # ..
 echo "Building .nexe..."
+make clean
 make
 
 echo "Done."
