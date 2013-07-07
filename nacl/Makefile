@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-PROJECT:=mosh_client
+PROJECT:=app/mosh_client
 CXX_SOURCES:=\
 	pepper_wrapper.cc
 

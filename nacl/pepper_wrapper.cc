@@ -173,8 +173,8 @@ class MoshClientInstance : public pp::Instance {
       return;
     }
     if (var.AsString() == "hello") {
-      //PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
-      fprintf(stderr, "Greetings from the Mosh Native Client!\n");
+      PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
+      //fprintf(stderr, "Greetings from the Mosh Native Client!\n");
     }
   }
 
