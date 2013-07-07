@@ -20,6 +20,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <langinfo.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
@@ -31,6 +32,8 @@
 #include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/module.h"
 #include "ppapi/cpp/var.h"
+
+using ::std::string;
 
 // Implement stubs for functions not in NaCl's libc.
 extern "C" {
@@ -55,6 +58,12 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
 
 // kill() is used to send a SIGSTOP on Ctrl-Z, which is not useful for NaCl.
 int kill(pid_t pid, int sig) {
+  return 0;
+}
+
+// getpid() isn't actually called, but it is annoying to see a linker warning
+// about it not being implemented.
+pid_t getpid(void) {
   return 0;
 }
 
@@ -148,17 +157,16 @@ int mosh_main(int argc, char* argv[]);
 
 class MoshClientInstance : public pp::Instance {
  public:
-  explicit MoshClientInstance(PP_Instance instance) : pp::Instance(instance) {
-    setenv("MOSH_KEY", "WT+MdvOOXtwp8+RJn5KPfg", 1);
-    setenv("TERM", "vt100", 1);
-    char* argv[] = { "mosh-client", "192.168.11.125", "60001" };
-    // TODO: This call probably shouldn't be in the constructor, and/or should
-    // be in another thread.
-    mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
-    fprintf(stderr, "Mosh has exited.\n");
+  explicit MoshClientInstance(PP_Instance instance) :
+    pp::Instance(instance), addr_(NULL), port_(NULL) {}
+  virtual ~MoshClientInstance() {
+    // Wait for thread to finish.
+    if (thread_) {
+      pthread_join(thread_, NULL);
+    }
+    delete[] addr_;
+    delete[] port_;
   }
-
-  virtual ~MoshClientInstance() {}
 
   virtual void HandleMessage(const pp::Var& var) {
     if (!var.is_string()) {
@@ -169,6 +177,46 @@ class MoshClientInstance : public pp::Instance {
       fprintf(stderr, "Greetings from the Mosh Native Client!\n");
     }
   }
+
+  virtual bool Init(uint32_t argc, const char* argn[], const char* argv[]) {
+    for (int i = 0; i < argc; ++i) {
+      string name = argn[i];
+      int len = strlen(argv[i]) + 1;
+      if (name == "key") {
+        setenv("MOSH_KEY", argv[i], 1);
+      } else if (name == "addr" && addr_ == NULL) {
+        addr_ = new char[len];
+        strncpy(addr_, argv[i], len);
+      } else if (name == "port" && port_ == NULL) {
+        port_ = new char[len];
+        strncpy(port_, argv[i], len);
+      }
+    }
+
+    if (addr_ == NULL || port_ == NULL) {
+      fprintf(stderr, "Must supply addr and port attributes.\n");
+      return false;
+    }
+
+    pthread_create(&thread_, NULL, &Launch, this);
+    return true;
+  }
+
+  static void* Launch(void* data) {
+    MoshClientInstance* thiz = reinterpret_cast<MoshClientInstance*>(data);
+
+    setenv("TERM", "vt100", 1);
+    char* argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
+    mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
+    fprintf(stderr, "Mosh has exited.\n");
+    return 0;
+  }
+
+ private:
+  pthread_t thread_;
+  // Non-const params for mosh_main().
+  char* addr_;
+  char* port_;
 };
 
 class MoshClientModule : public pp::Module {
