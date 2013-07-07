@@ -15,7 +15,13 @@
 
 #include "pepper_wrapper.h"
 
+#include <signal.h>
+#include <stdarg.h>
 #include <stdlib.h>
+#include <langinfo.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <unistd.h>
 
 #include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/module.h"
@@ -25,22 +31,60 @@
 extern "C" {
 
 // These are used to avoid CORE dumps. Should be OK to stub them out.
-int getrlimit(int resource, struct rlimit *rlim) {
+int getrlimit(int resource, struct rlimit* rlim) {
   return 0;
 }
-int setrlimit(int resource, const struct rlimit *rlim) {
+int setrlimit(int resource, const struct rlimit* rlim) {
   return 0;
 }
 
-// TODO: sigaction is used for things like catching window size changes. This
-// will need to be redirected.
-int sigaction(int signum, const struct sigaction *act,
-    struct sigaction *oldact) {
+// TODO: sigaction is used for important things. This will need to be
+// rethought. For now, stub it out to see how far it'll go without it.
+int sigaction(int signum, const struct sigaction* act,
+    struct sigaction* oldact) {
+  return 0;
+}
+int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
   return 0;
 }
 
 // kill() is used to send a SIGSTOP on Ctrl-Z, which is not useful for NaCl.
 int kill(pid_t pid, int sig) {
+  return 0;
+}
+
+// TODO: Determine if there's a better way than stubbing these out.
+char* setlocale(int category, const char* locale) {
+  return "NaCl";
+}
+char* nl_langinfo(nl_item item) {
+  switch (item) {
+    case CODESET:
+      return "UTF-8";
+    default:
+      return "Error";
+  }
+}
+
+// We don't really care about terminal attributes.
+int tcgetattr(int fd, struct termios* termios_p) {
+  return 0;
+}
+int tcsetattr(int fd, int optional_sctions, const struct termios* termios_p) {
+  return 0;
+}
+
+// TODO: Wire this into hterm.
+int ioctl(int d, long unsigned int request, ...) {
+  if (d != STDIN_FILENO || request != TIOCGWINSZ) {
+    return -1;
+  }
+  va_list argp;
+  va_start(argp, request);
+  struct winsize* ws = va_arg(argp, struct winsize*);
+  ws->ws_row = 24;
+  ws->ws_col = 80;
+  va_end(argp);
   return 0;
 }
 
@@ -54,9 +98,13 @@ int mosh_main(int argc, char* argv[]);
 class MoshClientInstance : public pp::Instance {
  public:
   explicit MoshClientInstance(PP_Instance instance) : pp::Instance(instance) {
-    setenv("MOSH_KEY", "somekeyhere", 1);
+    setenv("MOSH_KEY", "WT+MdvOOXtwp8+RJn5KPfg", 1);
+    setenv("TERM", "vt100", 1);
     char* argv[] = { "mosh-client", "192.168.11.125", "60001" };
+    // TODO: This call probably shouldn't be in the constructor, and/or should
+    // be in another thread.
     mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
+    PostMessage(pp::Var("Mosh has exited."));
   }
 
   virtual ~MoshClientInstance() {}
