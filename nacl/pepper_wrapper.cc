@@ -15,6 +15,8 @@
 
 #include "pepper_wrapper.h"
 
+#include <stdlib.h>
+
 #include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/module.h"
 #include "ppapi/cpp/var.h"
@@ -46,9 +48,17 @@ int kill(pid_t pid, int sig) {
 
 // TODO: Implement something useful.
 
+// Forward declaration of mosh_main(), as it has no header file.
+int mosh_main(int argc, char* argv[]);
+
 class MoshClientInstance : public pp::Instance {
  public:
-  explicit MoshClientInstance(PP_Instance instance) : pp::Instance(instance) {}
+  explicit MoshClientInstance(PP_Instance instance) : pp::Instance(instance) {
+    setenv("MOSH_KEY", "somekeyhere", 1);
+    char* argv[] = { "mosh-client", "192.168.11.125", "60001" };
+    mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
+  }
+
   virtual ~MoshClientInstance() {}
 
   virtual void HandleMessage(const pp::Var& var) {
