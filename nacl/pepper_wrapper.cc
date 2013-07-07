@@ -15,11 +15,16 @@
 
 #include "pepper_wrapper.h"
 
+#include <errno.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <langinfo.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -77,6 +82,7 @@ int tcsetattr(int fd, int optional_sctions, const struct termios* termios_p) {
 // TODO: Wire this into hterm.
 int ioctl(int d, long unsigned int request, ...) {
   if (d != STDIN_FILENO || request != TIOCGWINSZ) {
+    errno = EPROTO;
     return -1;
   }
   va_list argp;
@@ -85,6 +91,51 @@ int ioctl(int d, long unsigned int request, ...) {
   ws->ws_row = 24;
   ws->ws_col = 80;
   va_end(argp);
+  return 0;
+}
+
+// TODO: Wire the socket calls to talk to JS, and do the comm from there.
+static int stub_fd = 42;
+int socket(int domain, int type, int protocol) {
+  if (domain != AF_INET || type != SOCK_DGRAM || protocol != 0) {
+    errno = EPROTO;
+    return -1;
+  }
+  fprintf(stderr, "socket stub called; fd=%d\n", stub_fd);
+  return stub_fd++;
+}
+int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
+  fprintf(stderr, "bind stub called; fd=%d\n", sockfd);
+  return 0;
+}
+int close(int fd) {
+  fprintf(stderr, "close stub called; fd=%d\n", fd);
+  return 0;
+}
+int setsockopt(int sockfd, int level, int optname,
+    const void* optval, socklen_t optlen) {
+  fprintf(stderr, "setsockopt stub called; fd=%d\n", sockfd);
+  return 0;
+}
+int dup(int oldfd) {
+  fprintf(stderr, "dup stub called; oldfd=%d, fd=%d\n", oldfd, stub_fd);
+  return stub_fd++;
+}
+int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
+    const struct timespec* timeout, const sigset_t* sigmask) {
+  //fprintf(stderr, "pselect stub called; nfds=%d, timeout=(%ld,%ld)\n",
+      //nfds, timeout->tv_sec, timeout->tv_nsec);
+  return 0;
+}
+ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {
+  //fprintf(stderr, "recvmsg stub called; fd=%d, MSG_DONTWAIT=%s\n",
+      //sockfd, flags & MSG_DONTWAIT ? "true" : "false");
+  sleep(1);
+  return 0;
+}
+ssize_t sendto(int sockfd, const void* buf, size_t len, int flags,
+    const struct sockaddr* dest_addr, socklen_t addrlen) {
+  fprintf(stderr, "sendto stub called; fd=%d, len=%d\n", sockfd, len);
   return 0;
 }
 
@@ -104,7 +155,7 @@ class MoshClientInstance : public pp::Instance {
     // TODO: This call probably shouldn't be in the constructor, and/or should
     // be in another thread.
     mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
-    PostMessage(pp::Var("Mosh has exited."));
+    fprintf(stderr, "Mosh has exited.\n");
   }
 
   virtual ~MoshClientInstance() {}
@@ -114,7 +165,8 @@ class MoshClientInstance : public pp::Instance {
       return;
     }
     if (var.AsString() == "hello") {
-      PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
+      //PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
+      fprintf(stderr, "Greetings from the Mosh Native Client!\n");
     }
   }
 };
