@@ -16,6 +16,7 @@
 #include "pepper_wrapper.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -27,6 +28,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "ppapi/cpp/instance.h"
@@ -35,7 +37,107 @@
 
 using ::std::string;
 
-// Implement stubs for functions not in NaCl's libc.
+// Forward declaration of mosh_main(), as it has no header file.
+int mosh_main(int argc, char* argv[]);
+
+// Make the singleton MoshClientInstance available to C functions in this
+// module.
+static class MoshClientInstance* mosh_instance = NULL;
+
+class MoshClientInstance : public pp::Instance {
+ public:
+  explicit MoshClientInstance(PP_Instance instance) :
+    pp::Instance(instance), addr_(NULL), port_(NULL) {
+      ++num_instances_;
+      assert (num_instances_ == 1);
+      mosh_instance = this;
+  }
+
+  virtual ~MoshClientInstance() {
+    // Wait for thread to finish.
+    if (thread_) {
+      pthread_join(thread_, NULL);
+    }
+    delete[] addr_;
+    delete[] port_;
+  }
+
+  virtual void HandleMessage(const pp::Var& var) {
+    if (!var.is_string()) {
+      return;
+    }
+    if (var.AsString() == "hello") {
+      PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
+    }
+  }
+
+  virtual bool Init(uint32_t argc, const char* argn[], const char* argv[]) {
+    for (int i = 0; i < argc; ++i) {
+      string name = argn[i];
+      int len = strlen(argv[i]) + 1;
+      if (name == "key") {
+        setenv("MOSH_KEY", argv[i], 1);
+      } else if (name == "addr" && addr_ == NULL) {
+        addr_ = new char[len];
+        strncpy(addr_, argv[i], len);
+      } else if (name == "port" && port_ == NULL) {
+        port_ = new char[len];
+        strncpy(port_, argv[i], len);
+      }
+    }
+
+    if (addr_ == NULL || port_ == NULL) {
+      fprintf(stderr, "Must supply addr and port attributes.\n");
+      return false;
+    }
+
+    pthread_create(&thread_, NULL, &Launch, this);
+    return true;
+  }
+
+  static void* Launch(void* data) {
+    MoshClientInstance* thiz = reinterpret_cast<MoshClientInstance*>(data);
+
+    setenv("TERM", "vt100", 1);
+    char* argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
+    mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
+    thiz->Debug("Mosh has exited.");
+    return 0;
+  }
+
+  void Debug(const char* fmt, ...) {
+    char buf[256];
+    va_list argp;
+    va_start(argp, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, argp);
+    buf[sizeof(buf)-1] = 0;
+    PostMessage(pp::Var(buf));
+  }
+
+ private:
+  static int num_instances_; // This needs to be a singleton.
+  pthread_t thread_;
+  // Non-const params for mosh_main().
+  char* addr_;
+  char* port_;
+};
+
+// Initialize static data for MoshClientInstance.
+int MoshClientInstance::num_instances_ = 0;
+
+class MoshClientModule : public pp::Module {
+ public:
+  MoshClientModule() : pp::Module() {}
+  virtual ~MoshClientModule() {}
+
+  virtual pp::Instance* CreateInstance(PP_Instance instance) {
+    return new MoshClientInstance(instance);
+  }
+};
+
+//
+// Implement stubs and overrides for various C library functions.
+//
 extern "C" {
 
 // These are used to avoid CORE dumps. Should be OK to stub them out.
@@ -103,131 +205,101 @@ int ioctl(int d, long unsigned int request, ...) {
   return 0;
 }
 
-// TODO: Wire the socket calls to talk to JS, and do the comm from there.
+/* TODO: Intercept ifstream; this doesn't seem to work.
+// Emulate /dev/urandom, but don't interfere with closing of sockets.
+const int RANDOM_FD = 24;
+int open(const char* pathname, int flags, ...) {
+  string path = pathname;
+  if (path != "/dev/urandom") {
+    mosh_instance->Debug("opening something NOT /dev/urandom! (%s)", pathname);
+    errno = EACCES;
+    return -1;
+  }
+  mosh_instance->Debug("open stub called for /dev/urandom");
+  return RANDOM_FD;
+}
+ssize_t read(int fd, void* buf, size_t count) {
+  if (fd != RANDOM_FD) {
+    mosh_instance->Debug("read stub called for some other FD! (%d)", fd);
+    errno = EIO;
+    return -1;
+  }
+  // TODO: Properly emulate /dev/urandom.
+  return count;
+}
+*/
+int close(int fd) {
+  mosh_instance->Debug("close stub called; fd=%d", fd);
+  return 0;
+}
+
+//
+// Wrap all networking functions to communicate via JavaScript, where UDP can
+// be done.
+//
+
 static int stub_fd = 42;
 int socket(int domain, int type, int protocol) {
   if (domain != AF_INET || type != SOCK_DGRAM || protocol != 0) {
     errno = EPROTO;
     return -1;
   }
-  fprintf(stderr, "socket stub called; fd=%d\n", stub_fd);
+  mosh_instance->Debug("socket stub called; fd=%d", stub_fd);
   return stub_fd++;
 }
+
 int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
-  fprintf(stderr, "bind stub called; fd=%d\n", sockfd);
+  mosh_instance->Debug("bind stub called; fd=%d", sockfd);
   return 0;
 }
-int close(int fd) {
-  fprintf(stderr, "close stub called; fd=%d\n", fd);
-  return 0;
-}
+
 int setsockopt(int sockfd, int level, int optname,
     const void* optval, socklen_t optlen) {
-  fprintf(stderr, "setsockopt stub called; fd=%d\n", sockfd);
+  mosh_instance->Debug("setsockopt stub called; fd=%d", sockfd);
   return 0;
 }
 int dup(int oldfd) {
-  fprintf(stderr, "dup stub called; oldfd=%d, fd=%d\n", oldfd, stub_fd);
+  mosh_instance->Debug("dup stub called; oldfd=%d, fd=%d", oldfd, stub_fd);
   return stub_fd++;
 }
 int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     const struct timespec* timeout, const sigset_t* sigmask) {
-  //fprintf(stderr, "pselect stub called; nfds=%d, timeout=(%ld,%ld)\n",
-      //nfds, timeout->tv_sec, timeout->tv_nsec);
+  //mosh_instance->Debug("pselect stub called; nfds=%d readfds=%lx writefds=%lx exceptfds=%lx sigmask=%lx",
+      //nfds, readfds, writefds, exceptfds, sigmask);
+  if (timeout != NULL) {
+    mosh_instance->Debug("pselect timeout=(%ld,%ld)",
+        timeout->tv_sec, timeout->tv_nsec);
+    nanosleep(timeout, NULL);
+  } else {
+    mosh_instance->Debug("pselect no timeout");
+  }
+  for (int fd = 42; fd < 100; ++fd) {
+    bool r = readfds == NULL ? false : FD_ISSET(fd, readfds) ? true : false;
+    bool w = writefds == NULL ? false : FD_ISSET(fd, writefds) ? true : false;
+    bool e = exceptfds == NULL ? false : FD_ISSET(fd, exceptfds) ? true : false;
+    if (r || w || e) {
+      mosh_instance->Debug(
+          "pselect: for fd=%d, readfds=%s writefds=%s exceptfds=%s", fd,
+          r ? "true" : "false", w ? "true" : "false", e ? "true" : "false");
+    }
+  }
+  FD_ZERO(readfds);
+  FD_ZERO(exceptfds);
   return 0;
 }
 ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {
-  //fprintf(stderr, "recvmsg stub called; fd=%d, MSG_DONTWAIT=%s\n",
-      //sockfd, flags & MSG_DONTWAIT ? "true" : "false");
-  sleep(1);
+  mosh_instance->Debug("recvmsg stub called; fd=%d, MSG_DONTWAIT=%s",
+      sockfd, flags & MSG_DONTWAIT ? "true" : "false");
+  sleep(5);
   return 0;
 }
 ssize_t sendto(int sockfd, const void* buf, size_t len, int flags,
     const struct sockaddr* dest_addr, socklen_t addrlen) {
-  fprintf(stderr, "sendto stub called; fd=%d, len=%d\n", sockfd, len);
-  return 0;
+  mosh_instance->Debug("sendto stub called; fd=%d, len=%d", sockfd, len);
+  return len;
 }
 
 } // extern "C"
-
-// TODO: Implement something useful.
-
-// Forward declaration of mosh_main(), as it has no header file.
-int mosh_main(int argc, char* argv[]);
-
-class MoshClientInstance : public pp::Instance {
- public:
-  explicit MoshClientInstance(PP_Instance instance) :
-    pp::Instance(instance), addr_(NULL), port_(NULL) {}
-  virtual ~MoshClientInstance() {
-    // Wait for thread to finish.
-    if (thread_) {
-      pthread_join(thread_, NULL);
-    }
-    delete[] addr_;
-    delete[] port_;
-  }
-
-  virtual void HandleMessage(const pp::Var& var) {
-    if (!var.is_string()) {
-      return;
-    }
-    if (var.AsString() == "hello") {
-      PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
-      //fprintf(stderr, "Greetings from the Mosh Native Client!\n");
-    }
-  }
-
-  virtual bool Init(uint32_t argc, const char* argn[], const char* argv[]) {
-    for (int i = 0; i < argc; ++i) {
-      string name = argn[i];
-      int len = strlen(argv[i]) + 1;
-      if (name == "key") {
-        setenv("MOSH_KEY", argv[i], 1);
-      } else if (name == "addr" && addr_ == NULL) {
-        addr_ = new char[len];
-        strncpy(addr_, argv[i], len);
-      } else if (name == "port" && port_ == NULL) {
-        port_ = new char[len];
-        strncpy(port_, argv[i], len);
-      }
-    }
-
-    if (addr_ == NULL || port_ == NULL) {
-      fprintf(stderr, "Must supply addr and port attributes.\n");
-      return false;
-    }
-
-    pthread_create(&thread_, NULL, &Launch, this);
-    return true;
-  }
-
-  static void* Launch(void* data) {
-    MoshClientInstance* thiz = reinterpret_cast<MoshClientInstance*>(data);
-
-    setenv("TERM", "vt100", 1);
-    char* argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
-    mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
-    fprintf(stderr, "Mosh has exited.\n");
-    return 0;
-  }
-
- private:
-  pthread_t thread_;
-  // Non-const params for mosh_main().
-  char* addr_;
-  char* port_;
-};
-
-class MoshClientModule : public pp::Module {
- public:
-  MoshClientModule() : pp::Module() {}
-  virtual ~MoshClientModule() {}
-
-  virtual pp::Instance* CreateInstance(PP_Instance instance) {
-    return new MoshClientInstance(instance);
-  }
-};
 
 namespace pp {
 Module* CreateModule() {

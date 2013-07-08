@@ -62,7 +62,7 @@ function updateStatus(opt_message) {
     statusText = opt_message;
   var statusField = document.getElementById('status_field');
   if (statusField) {
-    statusField.innerHTML = statusText;
+    statusField.innerHTML = statusText + '<br>' + statusField.innerHTML;
   }
 }
 
