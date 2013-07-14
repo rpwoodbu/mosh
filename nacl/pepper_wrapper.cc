@@ -99,17 +99,8 @@ class MoshClientInstance : public pp::Instance {
     setenv("TERM", "vt100", 1);
     char* argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
     mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
-    thiz->Debug("Mosh has exited.");
+    thiz->PostMessage(pp::Var("Mosh has exited."));
     return 0;
-  }
-
-  void Debug(const char* fmt, ...) {
-    char buf[256];
-    va_list argp;
-    va_start(argp, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, argp);
-    buf[sizeof(buf)-1] = 0;
-    PostMessage(pp::Var(buf));
   }
 
  private:
@@ -132,6 +123,16 @@ class MoshClientModule : public pp::Module {
     return new MoshClientInstance(instance);
   }
 };
+
+// TODO: Eliminate this debugging hack.
+void NaClDebug(const char* fmt, ...) {
+  char buf[256];
+  va_list argp;
+  va_start(argp, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, argp);
+  buf[sizeof(buf)-1] = 0;
+  mosh_instance->PostMessage(pp::Var(buf));
+}
 
 //
 // Implement stubs and overrides for various C library functions.
@@ -209,16 +210,16 @@ const int RANDOM_FD = 24;
 int open(const char* pathname, int flags, ...) {
   string path = pathname;
   if (path != "/dev/urandom") {
-    mosh_instance->Debug("opening something NOT /dev/urandom! (%s)", pathname);
+    NaClDebug("opening something NOT /dev/urandom! (%s)", pathname);
     errno = EACCES;
     return -1;
   }
-  mosh_instance->Debug("open stub called for /dev/urandom");
+  NaClDebug("open stub called for /dev/urandom");
   return RANDOM_FD;
 }
 ssize_t read(int fd, void* buf, size_t count) {
   if (fd != RANDOM_FD) {
-    mosh_instance->Debug("read stub called for some other FD! (%d)", fd);
+    NaClDebug("read stub called for some other FD! (%d)", fd);
     errno = EIO;
     return -1;
   }
@@ -227,7 +228,7 @@ ssize_t read(int fd, void* buf, size_t count) {
 }
 */
 int close(int fd) {
-  mosh_instance->Debug("close stub called; fd=%d", fd);
+  NaClDebug("close stub called; fd=%d", fd);
   return 0;
 }
 
@@ -242,41 +243,40 @@ int socket(int domain, int type, int protocol) {
     errno = EPROTO;
     return -1;
   }
-  mosh_instance->Debug("socket stub called; fd=%d", stub_fd);
+  NaClDebug("socket stub called; fd=%d", stub_fd);
   return stub_fd++;
 }
 
 int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
-  mosh_instance->Debug("bind stub called; fd=%d", sockfd);
+  NaClDebug("bind stub called; fd=%d", sockfd);
   return 0;
 }
 
 int setsockopt(int sockfd, int level, int optname,
     const void* optval, socklen_t optlen) {
-  mosh_instance->Debug("setsockopt stub called; fd=%d", sockfd);
+  NaClDebug("setsockopt stub called; fd=%d", sockfd);
   return 0;
 }
 int dup(int oldfd) {
-  mosh_instance->Debug("dup stub called; oldfd=%d, fd=%d", oldfd, stub_fd);
+  NaClDebug("dup stub called; oldfd=%d, fd=%d", oldfd, stub_fd);
   return stub_fd++;
 }
 int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     const struct timespec* timeout, const sigset_t* sigmask) {
-  //mosh_instance->Debug("pselect stub called; nfds=%d readfds=%lx writefds=%lx exceptfds=%lx sigmask=%lx",
+  //NaClDebug("pselect stub called; nfds=%d readfds=%lx writefds=%lx exceptfds=%lx sigmask=%lx",
       //nfds, readfds, writefds, exceptfds, sigmask);
   if (timeout != NULL) {
-    mosh_instance->Debug("pselect timeout=(%ld,%ld)",
-        timeout->tv_sec, timeout->tv_nsec);
+    NaClDebug("pselect timeout=(%ld,%ld)", timeout->tv_sec, timeout->tv_nsec);
     nanosleep(timeout, NULL);
   } else {
-    mosh_instance->Debug("pselect no timeout");
+    NaClDebug("pselect no timeout");
   }
   for (int fd = 42; fd < 100; ++fd) {
     bool r = readfds == NULL ? false : FD_ISSET(fd, readfds) ? true : false;
     bool w = writefds == NULL ? false : FD_ISSET(fd, writefds) ? true : false;
     bool e = exceptfds == NULL ? false : FD_ISSET(fd, exceptfds) ? true : false;
     if (r || w || e) {
-      mosh_instance->Debug(
+      NaClDebug(
           "pselect: for fd=%d, readfds=%s writefds=%s exceptfds=%s", fd,
           r ? "true" : "false", w ? "true" : "false", e ? "true" : "false");
     }
@@ -286,14 +286,14 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
   return 0;
 }
 ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {
-  mosh_instance->Debug("recvmsg stub called; fd=%d, MSG_DONTWAIT=%s",
+  NaClDebug("recvmsg stub called; fd=%d, MSG_DONTWAIT=%s",
       sockfd, flags & MSG_DONTWAIT ? "true" : "false");
   sleep(5);
   return 0;
 }
 ssize_t sendto(int sockfd, const void* buf, size_t len, int flags,
     const struct sockaddr* dest_addr, socklen_t addrlen) {
-  mosh_instance->Debug("sendto stub called; fd=%d, len=%d", sockfd, len);
+  NaClDebug("sendto stub called; fd=%d, len=%d", sockfd, len);
   return len;
 }
 
