@@ -15,10 +15,11 @@
 
 PROJECT:=app/mosh_client
 CXX_SOURCES:=\
+	pepper_posix_selector.cc \
 	pepper_wrapper.cc
 
 CXX_HEADERS:=\
-	pepper_wrapper.h
+	pepper_posix_selector.h
 
 OBJECTS:=\
 	../src/frontend/mosh-client.o \
