@@ -31,11 +31,13 @@ int UDP::Socket() {
   return next_fd_++;
 }
 
+/* Not sure if this is necessary.
 int UDP::Bind(int fd, const string& address) {
   // TODO: Implement.
   NaClDebug("Bind(): fd=%d, address=%s", fd, address.c_str());
   return 0;
 }
+*/
 
 int UDP::Dup(int fd) {
   // TODO: Implement.

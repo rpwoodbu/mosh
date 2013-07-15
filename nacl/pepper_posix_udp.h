@@ -46,8 +46,10 @@ class UDP {
   // Socket replaces socket(), and returns a new fd.
   int Socket();
 
+  /* Not sure if this is necessary.
   // Bind replaces bind().
   int Bind(int fd, const string& address);
+  */
 
   // Dup replaces dup(), and returns a new fd.
   int Dup(int fd);

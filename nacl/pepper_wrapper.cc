@@ -278,6 +278,7 @@ int socket(int domain, int type, int protocol) {
   return instance->udp->Socket();
 }
 
+/* bind() doesn't seem to be necessary after all, but keeping it just in case.
 int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
   if (addr->sa_family != AF_INET || addrlen != 4) {
     // Only IPv4 currently supported.
@@ -290,6 +291,7 @@ int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
 
   return instance->udp->Bind(sockfd, MakeAddress(addr, addrlen));
 }
+*/
 
 int setsockopt(int sockfd, int level, int optname,
     const void* optval, socklen_t optlen) {
@@ -312,9 +314,6 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
 }
 ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {
   return instance->udp->Receive(sockfd, msg, flags);
-  //NaClDebug("recvmsg: Totally stubbed out");
-  //sleep(5);
-  //return 0;
 }
 ssize_t sendto(int sockfd, const void* buf, size_t len, int flags,
     const struct sockaddr* dest_addr, socklen_t addrlen) {
