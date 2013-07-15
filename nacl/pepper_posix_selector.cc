@@ -63,7 +63,11 @@ vector<Target*> Selector::Select(
 
   // Wait for a target to have data.
   pthread_mutex_lock(&notify_mutex_);
-  pthread_cond_timedwait(&notify_cv_, &notify_mutex_, timeout);
+  struct timespec abstime;
+  clock_gettime(CLOCK_REALTIME, &abstime);
+  abstime.tv_sec += timeout->tv_sec;
+  abstime.tv_nsec += timeout->tv_nsec;
+  pthread_cond_timedwait(&notify_cv_, &notify_mutex_, &abstime);
   pthread_mutex_unlock(&notify_mutex_);
 
   // Must check again to see who has data.
