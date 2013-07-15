@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <langinfo.h>
+#include <netdb.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -153,6 +154,20 @@ void NaClDebug(const char* fmt, ...) {
   instance->PostMessage(pp::Var(buf));
 }
 
+// Make an address string from sockaddr.
+string MakeAddress(const struct sockaddr* addr, socklen_t addrlen) {
+  char host[NI_MAXHOST];
+  char port[NI_MAXSERV];
+  if (getnameinfo(addr, addrlen, host, sizeof(host), port, sizeof(port),
+        NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+    string address = string(host) + ":" + port;
+    NaClDebug("MakeAddress: %s", address.c_str());
+    return address;
+  }
+  NaClDebug("MakeAddress: failed");
+  return "";
+}
+
 //
 // Implement stubs and overrides for various C library functions.
 //
@@ -261,20 +276,6 @@ int socket(int domain, int type, int protocol) {
     return -1;
   }
   return instance->udp->Socket();
-}
-
-string MakeAddress(const struct sockaddr* addr, socklen_t addrlen) {
-  if (addr->sa_family != AF_INET || addrlen != 4) {
-    // Only IPv4 currently supported.
-    // TODO: When Mosh supports IPv6, include support for it here.
-    return string("");
-  }
-  char address[16];
-  const char *data = addr->sa_data;
-  snprintf(address, sizeof(address),
-      "%u.%u.%u.%u", data[0], data[1], data[2], data[3]);
-  address[sizeof(address)-1] = 0; // Ensure it is null-terminated.
-  return string(address);
 }
 
 int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
