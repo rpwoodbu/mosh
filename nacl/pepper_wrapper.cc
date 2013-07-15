@@ -13,6 +13,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+#include "pepper_posix_selector.h"
+#include "pepper_posix_udp.h"
+
+#include <string>
+#include <vector>
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -34,21 +39,23 @@
 #include "ppapi/cpp/var.h"
 
 using ::std::string;
+using ::std::vector;
 
 // Forward declaration of mosh_main(), as it has no header file.
 int mosh_main(int argc, char* argv[]);
 
 // Make the singleton MoshClientInstance available to C functions in this
 // module.
-static class MoshClientInstance* mosh_instance = NULL;
+static class MoshClientInstance* instance = NULL;
 
 class MoshClientInstance : public pp::Instance {
  public:
   explicit MoshClientInstance(PP_Instance instance) :
-    pp::Instance(instance), addr_(NULL), port_(NULL) {
-      ++num_instances_;
-      assert (num_instances_ == 1);
-      mosh_instance = this;
+      pp::Instance(instance), addr_(NULL), port_(NULL),
+      udp(NULL), selector(NULL) {
+    ++num_instances_;
+    assert (num_instances_ == 1);
+    ::instance = this;
   }
 
   virtual ~MoshClientInstance() {
@@ -58,6 +65,8 @@ class MoshClientInstance : public pp::Instance {
     }
     delete[] addr_;
     delete[] port_;
+    delete udp;
+    delete selector;
   }
 
   virtual void HandleMessage(const pp::Var& var) {
@@ -89,6 +98,11 @@ class MoshClientInstance : public pp::Instance {
       return false;
     }
 
+    // Setup communications.
+    selector = new PepperPOSIX::Selector();
+    udp = new PepperPOSIX::JSUDP(selector->NewTarget());
+
+    // Launch mosh-client.
     pthread_create(&thread_, NULL, &Launch, this);
     return true;
   }
@@ -102,6 +116,11 @@ class MoshClientInstance : public pp::Instance {
     thiz->PostMessage(pp::Var("Mosh has exited."));
     return 0;
   }
+
+  // Selector object that stubs will use.
+  PepperPOSIX::Selector *selector;
+  // UDP object that stubs will use.
+  PepperPOSIX::UDP *udp;
 
  private:
   static int num_instances_; // This needs to be a singleton.
@@ -131,7 +150,7 @@ void NaClDebug(const char* fmt, ...) {
   va_start(argp, fmt);
   vsnprintf(buf, sizeof(buf), fmt, argp);
   buf[sizeof(buf)-1] = 0;
-  mosh_instance->PostMessage(pp::Var(buf));
+  instance->PostMessage(pp::Var(buf));
 }
 
 //
@@ -228,8 +247,7 @@ ssize_t read(int fd, void* buf, size_t count) {
 }
 */
 int close(int fd) {
-  NaClDebug("close stub called; fd=%d", fd);
-  return 0;
+  return instance->udp->Close(fd);
 }
 
 //
@@ -237,19 +255,39 @@ int close(int fd) {
 // be done.
 //
 
-static int stub_fd = 42;
 int socket(int domain, int type, int protocol) {
   if (domain != AF_INET || type != SOCK_DGRAM || protocol != 0) {
     errno = EPROTO;
     return -1;
   }
-  NaClDebug("socket stub called; fd=%d", stub_fd);
-  return stub_fd++;
+  return instance->udp->Socket();
+}
+
+string MakeAddress(const struct sockaddr* addr, socklen_t addrlen) {
+  if (addr->sa_family != AF_INET || addrlen != 4) {
+    // Only IPv4 currently supported.
+    // TODO: When Mosh supports IPv6, include support for it here.
+    return string("");
+  }
+  char address[16];
+  const char *data = addr->sa_data;
+  snprintf(address, sizeof(address),
+      "%u.%u.%u.%u", data[0], data[1], data[2], data[3]);
+  address[sizeof(address)-1] = 0; // Ensure it is null-terminated.
+  return string(address);
 }
 
 int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
-  NaClDebug("bind stub called; fd=%d", sockfd);
-  return 0;
+  if (addr->sa_family != AF_INET || addrlen != 4) {
+    // Only IPv4 currently supported.
+    // TODO: When Mosh supports IPv6, include support for it here.
+    NaClDebug("bind: Bad input. sa_family=%d, addrlen=%d",
+        addr->sa_family, addrlen);
+    errno = EPROTO;
+    return -1;
+  }
+
+  return instance->udp->Bind(sockfd, MakeAddress(addr, addrlen));
 }
 
 int setsockopt(int sockfd, int level, int optname,
@@ -258,43 +296,30 @@ int setsockopt(int sockfd, int level, int optname,
   return 0;
 }
 int dup(int oldfd) {
-  NaClDebug("dup stub called; oldfd=%d, fd=%d", oldfd, stub_fd);
-  return stub_fd++;
+  return instance->udp->Dup(oldfd);
 }
 int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     const struct timespec* timeout, const sigset_t* sigmask) {
-  //NaClDebug("pselect stub called; nfds=%d readfds=%lx writefds=%lx exceptfds=%lx sigmask=%lx",
-      //nfds, readfds, writefds, exceptfds, sigmask);
-  if (timeout != NULL) {
-    NaClDebug("pselect timeout=(%ld,%ld)", timeout->tv_sec, timeout->tv_nsec);
-    nanosleep(timeout, NULL);
-  } else {
-    NaClDebug("pselect no timeout");
+  const vector<PepperPOSIX::Target*> targets =
+    instance->selector->SelectAll(timeout);
+  if (targets.size() == 0) {
+    // TODO: Consider how to break this down to individual descriptors.
+    FD_ZERO(readfds);
   }
-  for (int fd = 42; fd < 100; ++fd) {
-    bool r = readfds == NULL ? false : FD_ISSET(fd, readfds) ? true : false;
-    bool w = writefds == NULL ? false : FD_ISSET(fd, writefds) ? true : false;
-    bool e = exceptfds == NULL ? false : FD_ISSET(fd, exceptfds) ? true : false;
-    if (r || w || e) {
-      NaClDebug(
-          "pselect: for fd=%d, readfds=%s writefds=%s exceptfds=%s", fd,
-          r ? "true" : "false", w ? "true" : "false", e ? "true" : "false");
-    }
-  }
-  FD_ZERO(readfds);
   FD_ZERO(exceptfds);
   return 0;
 }
 ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {
-  NaClDebug("recvmsg stub called; fd=%d, MSG_DONTWAIT=%s",
-      sockfd, flags & MSG_DONTWAIT ? "true" : "false");
-  sleep(5);
-  return 0;
+  return instance->udp->Receive(sockfd, msg, flags);
+  //NaClDebug("recvmsg: Totally stubbed out");
+  //sleep(5);
+  //return 0;
 }
 ssize_t sendto(int sockfd, const void* buf, size_t len, int flags,
     const struct sockaddr* dest_addr, socklen_t addrlen) {
-  NaClDebug("sendto stub called; fd=%d, len=%d", sockfd, len);
-  return len;
+  vector<char> buffer((const char*)buf, (const char*)buf+len);
+  return instance->udp->Send(
+      sockfd, buffer, flags, MakeAddress(dest_addr, addrlen));
 }
 
 } // extern "C"

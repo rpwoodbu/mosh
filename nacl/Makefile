@@ -16,10 +16,12 @@
 PROJECT:=app/mosh_client
 CXX_SOURCES:=\
 	pepper_posix_selector.cc \
+	pepper_posix_udp.cc \
 	pepper_wrapper.cc
 
 CXX_HEADERS:=\
-	pepper_posix_selector.h
+	pepper_posix_selector.h \
+	pepper_posix_udp.h
 
 OBJECTS:=\
 	../src/frontend/mosh-client.o \
