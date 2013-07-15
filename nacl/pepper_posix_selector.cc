@@ -55,6 +55,15 @@ void Selector::Notify() {
 
 vector<Target*> Selector::Select(
     const vector<Target*>& targets, const struct timespec* timeout) {
+  // Calculate absolute time for timeout. This should be done ASAP to reduce
+  // the chances of this method not returning by the timeout specified. There
+  // are no guarantees, of course.
+  struct timespec abstime;
+  clock_gettime(CLOCK_REALTIME, &abstime);
+  abstime.tv_sec += timeout->tv_sec;
+  abstime.tv_nsec += timeout->tv_nsec;
+
+  // Check if any data is available.
   vector<Target*> result = HasData(targets);
   if (result.size() > 0) {
     // Data available now; return immediately.
@@ -63,10 +72,6 @@ vector<Target*> Selector::Select(
 
   // Wait for a target to have data.
   pthread_mutex_lock(&notify_mutex_);
-  struct timespec abstime;
-  clock_gettime(CLOCK_REALTIME, &abstime);
-  abstime.tv_sec += timeout->tv_sec;
-  abstime.tv_nsec += timeout->tv_nsec;
   pthread_cond_timedwait(&notify_cv_, &notify_mutex_, &abstime);
   pthread_mutex_unlock(&notify_mutex_);
 
