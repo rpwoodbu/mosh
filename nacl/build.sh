@@ -26,9 +26,6 @@ if [[ ${NACL_PORTS} == "" ]]; then
   exit 1
 fi
 
-# TODO: Deal with the need to put a symlink "lib64" to
-# ${NACL_SDK_ROOT}/toolchain/linux_x86_glibc/x86_64-nacl in the app directory.
-
 # TODO: Consider getting and building protoc to match what's in NaCl Ports.
 
 export NACL_GLIBC="1"

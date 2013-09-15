@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-PROJECT:=app/mosh_client
+OUTDIR:=app
+PROJECT:=$(OUTDIR)/mosh_client
 CXX_SOURCES:=\
 	pepper_posix_selector.cc \
 	pepper_posix_udp.cc \
@@ -65,7 +66,7 @@ PNACL_CXXFLAGS:=$(CXXFLAGS) -DUSE_NEWLIB $(COMPAT_INC)
 THIS_MAKEFILE:=$(abspath $(lastword $(MAKEFILE_LIST)))
 
 # Declare the ALL target first, to make the 'all' target the default build
-all: $(PROJECT)_x86_64.nexe
+all: $(PROJECT).nmf
 
 # Define 32 bit compile and link rules for C++ sources
 x86_32_OBJS:=$(patsubst %.cc,%_32.o,$(CXX_SOURCES))
@@ -83,5 +84,9 @@ $(x86_64_OBJS) : %_64.o : %.cc $(THIS_MAKE)
 $(PROJECT)_x86_64.nexe : $(x86_64_OBJS)
 	$(CXX) -o $@ $^ -m64 $(OBJECTS) $(LIBS) $(CXXFLAGS) $(LDFLAGS)
 
+# Create NaCl Manifest
+$(PROJECT).nmf : $(PROJECT)_x86_64.nexe
+	$(NACL_SDK_ROOT)/tools/create_nmf.py $< -o $@ -s $(OUTDIR)
+
 clean:
-	rm -rf *.o $(PROJECT)*.nexe $(PROJECT).pexe
+	rm -rf *.o $(PROJECT)*.nexe $(PROJECT).pexe $(PROJECT).nmf $(OUTDIR)/lib*
