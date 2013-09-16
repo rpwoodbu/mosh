@@ -16,12 +16,14 @@
 OUTDIR:=app
 PROJECT:=$(OUTDIR)/mosh_client
 CXX_SOURCES:=\
+	pepper_posix_native_udp.cc \
 	pepper_posix_selector.cc \
 	pepper_posix_udp.cc \
 	pepper_wrapper.cc
 
 CXX_HEADERS:=\
 	pepper_posix_selector.h \
+	pepper_posix_native_udp.h \
 	pepper_posix_udp.h
 
 OBJECTS:=\

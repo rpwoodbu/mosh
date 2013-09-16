@@ -14,7 +14,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "pepper_posix_selector.h"
-#include "pepper_posix_udp.h"
+#include "pepper_posix_native_udp.h"
 
 #include <string>
 #include <vector>
@@ -101,7 +101,7 @@ class MoshClientInstance : public pp::Instance {
 
     // Setup communications.
     selector = new PepperPOSIX::Selector();
-    udp = new PepperPOSIX::StubUDP(selector->NewTarget());
+    udp = new PepperPOSIX::NativeUDP(selector->NewTarget());
 
     // Launch mosh-client.
     pthread_create(&thread_, NULL, &Launch, this);
