@@ -23,20 +23,19 @@
 
 #include "pepper_posix_selector.h"
 
-#include <string>
 #include <vector>
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "ppapi/c/ppb_net_address.h"
+
 namespace PepperPOSIX {
 
-using std::string;
-
 // UDP implements the basic POSIX emulation logic for UDP communication. It is
-// not fully implemented. An implementation should fully implement Send() and
-// insert received packets using AddPacket(). It is expected that AddPacket()
-// will be called from a different thread than the one calling the other
-// methods; no other thread safety is provided.
+// not fully implemented. An implementation should fully implement Bind() and
+// Send(), and insert received packets using AddPacket(). It is expected that
+// AddPacket() will be called from a different thread than the one calling the
+// other methods; no other thread safety is provided.
 class UDP {
  public:
   // UDP constructs with a Target, from Selector::GetTarget().
@@ -46,20 +45,19 @@ class UDP {
   // Socket replaces socket(), and returns a new fd.
   int Socket();
 
-  /* Not sure if this is necessary.
-  // Bind replaces bind().
-  int Bind(int fd, const string& address);
-  */
-
   // Dup replaces dup(), and returns a new fd.
   int Dup(int fd);
 
   // Receive replaces recvmsg(); see its documentation for usage.
   ssize_t Receive(int fd, struct ::msghdr* message, int flags);
 
+  // Bind replaces bind().
+  virtual int Bind(int fd, const PP_NetAddress_IPv4& address) = 0;
+
   // Send replaces sendto(). Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-    int fd, const vector<char>& buf, int flags, const string& address) = 0;
+    int fd, const vector<char>& buf, int flags,
+    const PP_NetAddress_IPv4& address) = 0;
 
   // Close replaces close().
   int Close(int fd);
@@ -86,9 +84,13 @@ class StubUDP : public UDP {
   StubUDP(Target* target) : UDP(target) {}
   virtual ~StubUDP() {}
 
+  // Bind replaces bind().
+  virtual int Bind(int fd, const PP_NetAddress_IPv4& address);
+
   // Send replaces sendto. Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-    int fd, const vector<char>& buf, int flags, const string& address);
+    int fd, const vector<char>& buf, int flags,
+    const PP_NetAddress_IPv4& address);
 
  private:
   // Disable copy and assignment.

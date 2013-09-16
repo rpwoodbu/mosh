@@ -20,20 +20,31 @@
 
 #include "pepper_posix_udp.h"
 
+#include "ppapi/cpp/instance_handle.h"
+#include "ppapi/cpp/udp_socket.h"
+
 namespace PepperPOSIX {
 
 // NativeUDP implements UDP using the native Pepper UDPSockets API.
 class NativeUDP : public UDP {
  public:
   // NativeUDP constructs with a Target, from Selector::GetTarget().
-  NativeUDP(Target* target) : UDP(target) {}
-  virtual ~NativeUDP() {}
+  NativeUDP(const pp::InstanceHandle& instance_handle, Target* target);
+  virtual ~NativeUDP();
+
+  // Bind replaces bind().
+  virtual int Bind(int fd, const PP_NetAddress_IPv4& address);
 
   // Send replaces sendto. Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-      int fd, const vector<char>& buf, int flags, const string& address);
+      int fd, const vector<char>& buf, int flags,
+      const PP_NetAddress_IPv4& address);
 
  private:
+  pp::UDPSocket* socket_;
+  bool bound_;
+  const pp::InstanceHandle& instance_handle_;
+
   // Disable copy and assignment.
   NativeUDP(const NativeUDP&);
   NativeUDP& operator=(const NativeUDP&);

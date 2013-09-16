@@ -31,14 +31,6 @@ int UDP::Socket() {
   return next_fd_++;
 }
 
-/* Not sure if this is necessary.
-int UDP::Bind(int fd, const string& address) {
-  // TODO: Implement.
-  NaClDebug("Bind(): fd=%d, address=%s", fd, address.c_str());
-  return 0;
-}
-*/
-
 int UDP::Dup(int fd) {
   // TODO: Implement.
   NaClDebug("Dup(): oldfd=%d, fd=%d", fd, next_fd_);
@@ -65,12 +57,16 @@ int UDP::Close(int fd) {
 }
 
 ssize_t StubUDP::Send(
-    int fd, const vector<char>& buf, int flags, const string& addr) {
-  // TODO: Implement.
+    int fd, const vector<char>& buf, int flags, const PP_NetAddress_IPv4& addr) {
   NaClDebug("StubUDP::Send(): fd=%d, size=%d", fd, buf.size());
   NaClDebug("StubUDP::Send(): Pretending we received something.");
   AddPacket(NULL);
   return buf.size();
+}
+
+int StubUDP::Bind(int fd, const PP_NetAddress_IPv4& address) {
+  NaClDebug("StubBind(): fd=%d", fd);
+  return 0;
 }
 
 } // namespace PepperPOSIX

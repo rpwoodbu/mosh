@@ -35,7 +35,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "ppapi/c/ppb_net_address.h"
 #include "ppapi/cpp/instance.h"
+#include "ppapi/cpp/instance_handle.h"
 #include "ppapi/cpp/module.h"
 #include "ppapi/cpp/var.h"
 
@@ -53,7 +55,7 @@ class MoshClientInstance : public pp::Instance {
  public:
   explicit MoshClientInstance(PP_Instance instance) :
       pp::Instance(instance), addr_(NULL), port_(NULL),
-      udp(NULL), selector(NULL) {
+      udp_(NULL), selector_(NULL), instance_handle_(this) {
     ++num_instances_;
     assert (num_instances_ == 1);
     ::instance = this;
@@ -66,8 +68,8 @@ class MoshClientInstance : public pp::Instance {
     }
     delete[] addr_;
     delete[] port_;
-    delete udp;
-    delete selector;
+    delete udp_;
+    delete selector_;
   }
 
   virtual void HandleMessage(const pp::Var& var) {
@@ -100,8 +102,8 @@ class MoshClientInstance : public pp::Instance {
     }
 
     // Setup communications.
-    selector = new PepperPOSIX::Selector();
-    udp = new PepperPOSIX::NativeUDP(selector->NewTarget());
+    selector_ = new PepperPOSIX::Selector();
+    udp_ = new PepperPOSIX::NativeUDP(instance_handle_, selector_->NewTarget());
 
     // Launch mosh-client.
     pthread_create(&thread_, NULL, &Launch, this);
@@ -119,9 +121,9 @@ class MoshClientInstance : public pp::Instance {
   }
 
   // Selector object that stubs will use.
-  PepperPOSIX::Selector *selector;
+  PepperPOSIX::Selector *selector_;
   // UDP object that stubs will use.
-  PepperPOSIX::UDP *udp;
+  PepperPOSIX::UDP *udp_;
 
  private:
   static int num_instances_; // This needs to be a singleton.
@@ -129,6 +131,7 @@ class MoshClientInstance : public pp::Instance {
   // Non-const params for mosh_main().
   char* addr_;
   char* port_;
+  pp::InstanceHandle instance_handle_;
 };
 
 // Initialize static data for MoshClientInstance.
@@ -154,18 +157,20 @@ void NaClDebug(const char* fmt, ...) {
   instance->PostMessage(pp::Var(buf));
 }
 
-// Make an address string from sockaddr.
-string MakeAddress(const struct sockaddr* addr, socklen_t addrlen) {
-  char host[NI_MAXHOST];
-  char port[NI_MAXSERV];
-  if (getnameinfo(addr, addrlen, host, sizeof(host), port, sizeof(port),
-        NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
-    string address = string(host) + ":" + port;
-    NaClDebug("MakeAddress: %s", address.c_str());
-    return address;
+// Make a PP_NetAddress_IPv4 from sockaddr.
+void MakeAddress(const struct sockaddr* addr, socklen_t addrlen,
+    PP_NetAddress_IPv4* pp_addr) {
+  // TODO: Make an IPv6 version, but since mosh doesn't support it now, this
+  // will do.
+  assert(addr->sa_family == AF_INET);
+  assert(addrlen >= 4);
+  const struct sockaddr_in* in_addr = (struct sockaddr_in*)addr;
+  uint32_t a = in_addr->sin_addr.s_addr;
+  for (int i = 0; i < 4; ++i) {
+    pp_addr->addr[i] = a & 0xff;
+    a >>= 8;
   }
-  NaClDebug("MakeAddress: failed");
-  return "";
+  pp_addr->port = in_addr->sin_port;
 }
 
 //
@@ -262,12 +267,11 @@ ssize_t read(int fd, void* buf, size_t count) {
 }
 */
 int close(int fd) {
-  return instance->udp->Close(fd);
+  return instance->udp_->Close(fd);
 }
 
 //
-// Wrap all networking functions to communicate via JavaScript, where UDP can
-// be done.
+// Wrap all networking functions to communicate via the Pepper API.
 //
 
 int socket(int domain, int type, int protocol) {
@@ -275,7 +279,7 @@ int socket(int domain, int type, int protocol) {
     errno = EPROTO;
     return -1;
   }
-  return instance->udp->Socket();
+  return instance->udp_->Socket();
 }
 
 /* bind() doesn't seem to be necessary after all, but keeping it just in case.
@@ -288,8 +292,9 @@ int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
     errno = EPROTO;
     return -1;
   }
-
-  return instance->udp->Bind(sockfd, MakeAddress(addr, addrlen));
+  PP_NetAddress_IPv4 pp_addr;
+  MakeAddress(addr, addrlen, &addr);
+  return instance->udp_->Bind(sockfd, pp_addr);
 }
 */
 
@@ -299,12 +304,12 @@ int setsockopt(int sockfd, int level, int optname,
   return 0;
 }
 int dup(int oldfd) {
-  return instance->udp->Dup(oldfd);
+  return instance->udp_->Dup(oldfd);
 }
 int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     const struct timespec* timeout, const sigset_t* sigmask) {
   const vector<PepperPOSIX::Target*> targets =
-    instance->selector->SelectAll(timeout);
+    instance->selector_->SelectAll(timeout);
   if (targets.size() == 0) {
     // TODO: Consider how to break this down to individual descriptors.
     FD_ZERO(readfds);
@@ -313,13 +318,14 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
   return 0;
 }
 ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {
-  return instance->udp->Receive(sockfd, msg, flags);
+  return instance->udp_->Receive(sockfd, msg, flags);
 }
 ssize_t sendto(int sockfd, const void* buf, size_t len, int flags,
     const struct sockaddr* dest_addr, socklen_t addrlen) {
   vector<char> buffer((const char*)buf, (const char*)buf+len);
-  return instance->udp->Send(
-      sockfd, buffer, flags, MakeAddress(dest_addr, addrlen));
+  PP_NetAddress_IPv4 addr;
+  MakeAddress(dest_addr, addrlen, &addr);
+  return instance->udp_->Send(sockfd, buffer, flags, addr);
 }
 
 } // extern "C"

@@ -17,18 +17,64 @@
 
 #include "pepper_posix_native_udp.h"
 
+#include <string.h>
+
+#include "ppapi/c/pp_errors.h"
+#include "ppapi/cpp/completion_callback.h"
+#include "ppapi/cpp/var.h"
+
 // TODO: Eliminate this debugging hack.
 void NaClDebug(const char* fmt, ...);
 
 namespace PepperPOSIX {
 
+NativeUDP::NativeUDP(
+    const pp::InstanceHandle& instance_handle, Target* target) :
+    UDP(target), instance_handle_(instance_handle) {
+  socket_ = new pp::UDPSocket(instance_handle);
+  bound_ = false;
+}
+
+NativeUDP::~NativeUDP() {
+  delete socket_;
+}
+
+int NativeUDP::Bind(int fd, const PP_NetAddress_IPv4& address) {
+  pp::NetAddress net_address(instance_handle_, address);
+  pp::Var string_address = net_address.DescribeAsString(true);
+  if (string_address.is_undefined()) {
+    NaClDebug("NativeUDP::Bind() Address is bogus.");
+    // TODO: Return something appropriate.
+    return false;
+  } else {
+    NaClDebug("NativeUDP::Bind() Address is %s", string_address.AsString().c_str());
+  }
+
+  int32_t result = socket_->Bind(net_address, pp::CompletionCallback());
+  NaClDebug("NativeUDP::Bind() fd=%d, result=%d", fd, result);
+  if (result == PP_OK) {
+    bound_ = true;
+  }
+  // TODO: Flesh out error mapping.
+  return result;
+}
+
 ssize_t NativeUDP::Send(
-    int fd, const vector<char>& buf, int flags, const string& addr) {
-  // TODO: Implement.
-  NaClDebug("NativeUDP::Send(): fd=%d, size=%d", fd, buf.size());
-  NaClDebug("NativeUDP::Send(): Pretending we received something.");
-  AddPacket(NULL);
-  return buf.size();
+    int fd, const vector<char>& buf, int flags,
+    const PP_NetAddress_IPv4& address) {
+  if (!bound_) {
+    PP_NetAddress_IPv4 any_address;
+    memset(&any_address, 0, sizeof(any_address));
+    int result = Bind(fd, any_address);
+    if (result != 0) {
+      NaClDebug("NativeUDP::Send(): Bind failed with %d", result);
+      return 0;
+    }
+  }
+
+  pp::NetAddress net_address(instance_handle_, address);
+  return socket_->SendTo(
+      buf.data(), buf.size(), net_address, pp::CompletionCallback());
 }
 
 } // namespace PepperPOSIX
