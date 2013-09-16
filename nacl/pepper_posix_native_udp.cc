@@ -21,6 +21,7 @@
 
 #include "ppapi/c/pp_errors.h"
 #include "ppapi/cpp/completion_callback.h"
+#include "ppapi/cpp/module.h"
 #include "ppapi/cpp/var.h"
 
 // TODO: Eliminate this debugging hack.
@@ -30,7 +31,7 @@ namespace PepperPOSIX {
 
 NativeUDP::NativeUDP(
     const pp::InstanceHandle& instance_handle, Target* target) :
-    UDP(target), instance_handle_(instance_handle) {
+    UDP(target), instance_handle_(instance_handle), factory_(this) {
   socket_ = new pp::UDPSocket(instance_handle);
   bound_ = false;
 }
@@ -54,6 +55,8 @@ int NativeUDP::Bind(int fd, const PP_NetAddress_IPv4& address) {
   NaClDebug("NativeUDP::Bind() fd=%d, result=%d", fd, result);
   if (result == PP_OK) {
     bound_ = true;
+    pp::Module::Get()->core()->CallOnMainThread(
+        0, factory_.NewCallback(&NativeUDP::StartReceive));
   }
   // TODO: Flesh out error mapping.
   return result;
@@ -75,6 +78,28 @@ ssize_t NativeUDP::Send(
   pp::NetAddress net_address(instance_handle_, address);
   return socket_->SendTo(
       buf.data(), buf.size(), net_address, pp::CompletionCallback());
+}
+
+// StartReceive prepares to receive another packet, and returns without
+// blocking.
+void NativeUDP::StartReceive(int32_t unused) {
+  int32_t result = socket_->RecvFrom(
+      receive_buffer_, sizeof(receive_buffer_),
+      factory_.NewCallbackWithOutput(&NativeUDP::Received));
+  if (result != PP_OK_COMPLETIONPENDING) {
+    NaClDebug("NativeUDP::StartReceive(): RecvFrom returned %d", result);
+    // TODO: Perhaps crash here?
+  }
+}
+
+// Received is the callback result of StartReceive().
+void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
+  NaClDebug("NativeUDP::Received(): Got %d from %s",
+      result, address.DescribeAsString(true).AsString().c_str());
+  // TODO: Implement.
+  AddPacket(NULL);
+  // Await another packet.
+  StartReceive(0);
 }
 
 } // namespace PepperPOSIX

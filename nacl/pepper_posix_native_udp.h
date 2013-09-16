@@ -22,6 +22,9 @@
 
 #include "ppapi/cpp/instance_handle.h"
 #include "ppapi/cpp/udp_socket.h"
+#include "ppapi/utility/completion_callback_factory.h"
+
+const int RECEIVE_BUFFER_SIZE = 1500; // Typical MTU.
 
 namespace PepperPOSIX {
 
@@ -41,9 +44,14 @@ class NativeUDP : public UDP {
       const PP_NetAddress_IPv4& address);
 
  private:
+  void StartReceive(int32_t unused);
+  void Received(int32_t result, const pp::NetAddress &address);
+
   pp::UDPSocket* socket_;
   bool bound_;
   const pp::InstanceHandle& instance_handle_;
+  char receive_buffer_[RECEIVE_BUFFER_SIZE];
+  pp::CompletionCallbackFactory<NativeUDP> factory_;
 
   // Disable copy and assignment.
   NativeUDP(const NativeUDP&);
