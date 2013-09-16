@@ -1,7 +1,14 @@
 #!/bin/bash -e
 
 # Build the Native Client port of the Mosh client for running in the Chrome
-# browser.
+# browser. If you have already built once and are doing active development on
+# the Native Client port, invoke with the parameter "fast".
+
+FAST=""
+if [[ $# -gt 0 ]]; then
+  FAST="$1"
+  shift 1
+fi
 
 # Copyright 2013 Richard Woodbury
 #
@@ -50,18 +57,21 @@ export PATH=${NACL_BIN_PATH}:${PATH};
 # instead of using this hack.
 export CXXFLAGS="-D__NACL__"
 
-pushd .. > /dev/null
-if [[ ! -f configure ]]; then
-  echo "Running autogen."
-  ./autogen.sh
+if [[ ${FAST} != "fast" ]]; then
+  pushd .. > /dev/null
+  if [[ ! -f configure ]]; then
+    echo "Running autogen."
+    ./autogen.sh
+  fi
+  echo "Configuring..."
+  ./configure --host=nacl --prefix=${NACLPORTS_PREFIX} \
+    --enable-client=yes --enable-server=no # --disable-silent-rules
+  echo "Building Mosh with NaCl compiler..."
+  make clean
+  make || echo "Ignore error."
+  popd > /dev/null # ..
 fi
-echo "Configuring..."
-./configure --host=nacl --prefix=${NACLPORTS_PREFIX} \
-  --enable-client=yes --enable-server=no # --disable-silent-rules
-echo "Building Mosh with NaCl compiler..."
-make clean
-make || echo "Ignore error."
-popd > /dev/null # ..
+
 echo "Building .nexe..."
 make clean
 make
