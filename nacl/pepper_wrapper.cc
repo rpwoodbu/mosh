@@ -101,7 +101,7 @@ class MoshClientInstance : public pp::Instance {
 
     // Setup communications.
     selector = new PepperPOSIX::Selector();
-    udp = new PepperPOSIX::JSUDP(selector->NewTarget());
+    udp = new PepperPOSIX::StubUDP(selector->NewTarget());
 
     // Launch mosh-client.
     pthread_create(&thread_, NULL, &Launch, this);

@@ -79,12 +79,12 @@ class UDP {
   UDP& operator=(const UDP&);
 };
 
-// JSUDP implements the JavaScript-specific communication logic for UDP.
-class JSUDP : public UDP {
+// StubUDP is an instantiatable stubbed subclass of UDP for debugging.
+class StubUDP : public UDP {
  public:
-  // JSUDP constructs with a Target, from Selector::GetTarget().
-  JSUDP(Target* target) : UDP(target) {}
-  virtual ~JSUDP() {}
+  // StubUDP constructs with a Target, from Selector::GetTarget().
+  StubUDP(Target* target) : UDP(target) {}
+  virtual ~StubUDP() {}
 
   // Send replaces sendto. Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
@@ -92,8 +92,8 @@ class JSUDP : public UDP {
 
  private:
   // Disable copy and assignment.
-  JSUDP(const JSUDP&);
-  JSUDP& operator=(const JSUDP&);
+  StubUDP(const StubUDP&);
+  StubUDP& operator=(const StubUDP&);
 };
 
 } // namespace PepperPOSIX

@@ -64,11 +64,11 @@ int UDP::Close(int fd) {
   return 0;
 }
 
-ssize_t JSUDP::Send(
+ssize_t StubUDP::Send(
     int fd, const vector<char>& buf, int flags, const string& addr) {
   // TODO: Implement.
-  NaClDebug("JSUDP::Send(): fd=%d, size=%d", fd, buf.size());
-  NaClDebug("JSUDP::Send(): Pretending we received something.");
+  NaClDebug("StubUDP::Send(): fd=%d, size=%d", fd, buf.size());
+  NaClDebug("StubUDP::Send(): Pretending we received something.");
   AddPacket(NULL);
   return buf.size();
 }
