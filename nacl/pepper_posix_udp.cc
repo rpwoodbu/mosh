@@ -19,40 +19,106 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "pepper_posix_udp.h"
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 // TODO: Eliminate this debugging hack.
-void NaClDebug(const char* fmt, ...);
+void NaClDebug(const char *fmt, ...);
 
 namespace PepperPOSIX {
 
+void DestroyMessage(struct ::msghdr *message) {
+  free(message->msg_name);
+  for (int i = 0; i < message->msg_iovlen; ++i) {
+    free(message->msg_iov[i].iov_base);
+    free(message->msg_iov + i);
+  }
+  assert(message->msg_control == NULL); // This isn't being used.
+
+  delete message;
+}
+
+UDP::UDP(Target *target) : target_(target), next_fd_(42) {
+  pthread_mutex_init(&packets_lock_, NULL);
+}
+
+UDP::~UDP() {
+  delete target_;
+
+  // There really shouldn't be another thread actively involved at destruction
+  // time, but getting the lock nonetheless.
+  pthread_mutex_lock(&packets_lock_);
+  for (std::deque<struct ::msghdr *>::iterator i = packets_.begin();
+      i != packets_.end();
+      ++i) {
+    DestroyMessage(*i);
+  }
+  pthread_mutex_unlock(&packets_lock_);
+  pthread_mutex_destroy(&packets_lock_);
+}
+
 int UDP::Socket() {
   // TODO: Implement.
-  NaClDebug("Socket(): fd=%d", next_fd_);
+  NaClDebug("UDP::Socket(): fd=%d", next_fd_);
   return next_fd_++;
 }
 
 int UDP::Dup(int fd) {
   // TODO: Implement.
-  NaClDebug("Dup(): oldfd=%d, fd=%d", fd, next_fd_);
+  NaClDebug("UDP::Dup(): oldfd=%d, fd=%d", fd, next_fd_);
   return next_fd_++;
 }
 
-ssize_t UDP::Receive(int fd, struct ::msghdr* message, int flags) {
-  // TODO: Implement.
-  NaClDebug("Receive(): fd=%d", fd);
+ssize_t UDP::Receive(int fd, struct ::msghdr *message, int flags) {
+  NaClDebug("UDP::Receive(%d, %llx, %x)", fd, message, flags);
+
+  pthread_mutex_lock(&packets_lock_);
+  if (packets_.size() == 0) {
+    pthread_mutex_unlock(&packets_lock_);
+    return 0;
+  }
+  struct ::msghdr *latest = packets_.front();
+  packets_.pop_front();
+  pthread_mutex_unlock(&packets_lock_);
+
+  if (message->msg_namelen >= latest->msg_namelen) {
+    memcpy(message->msg_name, latest->msg_name, latest->msg_namelen);
+  } else {
+    NaClDebug("UDP::Receive(): msg_namelen too short.");
+  }
+
+  assert(latest->msg_iovlen == 1); // For simplicity, as this is internal.
+  ssize_t size = 0;
+  size_t input_len = latest->msg_iov->iov_len;
+  for (int i = 0; i < message->msg_iovlen && size < input_len; ++i) {
+    size_t output_len = message->msg_iov[i].iov_len;
+    size_t to_copy = output_len <= input_len ? output_len : input_len;
+    memcpy(message->msg_iov[i].iov_base, latest->msg_iov->iov_base, to_copy);
+    size += to_copy;
+  }
+  assert(size == input_len); // TODO: Return a real error, or handle better.
+
+  // TODO: Ignoring flags, msg_flags, and msg_control for now.
+
+  DestroyMessage(latest);
+
   target_->Update(false);
-  return 0;
+  return size;
 }
 
-void UDP::AddPacket(struct ::msghdr* message) {
-  // TODO: Implement.
-  NaClDebug("AddPacket()");
+void UDP::AddPacket(struct ::msghdr *message) {
+  NaClDebug("UDP::AddPacket(%llx)", message);
+  NaClDebug("UDP::AddPacket(): sa_family: %d", ((::sockaddr *)message->msg_name)->sa_family);
+  pthread_mutex_lock(&packets_lock_);
+  packets_.push_back(message);
+  pthread_mutex_unlock(&packets_lock_);
   target_->Update(true);
 }
 
 int UDP::Close(int fd) {
   // TODO: Implement.
-  NaClDebug("Close(): fd=%d", fd);
+  NaClDebug("UDP::Close(): fd=%d", fd);
   return 0;
 }
 

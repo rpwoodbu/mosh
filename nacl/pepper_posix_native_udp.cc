@@ -17,7 +17,9 @@
 
 #include "pepper_posix_native_udp.h"
 
+#include <netinet/in.h>
 #include <string.h>
+#include <sys/uio.h>
 
 #include "ppapi/c/pp_errors.h"
 #include "ppapi/cpp/completion_callback.h"
@@ -96,8 +98,39 @@ void NativeUDP::StartReceive(int32_t unused) {
 void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
   NaClDebug("NativeUDP::Received(): Got %d from %s",
       result, address.DescribeAsString(true).AsString().c_str());
-  // TODO: Implement.
-  AddPacket(NULL);
+
+  PP_NetAddress_IPv4 ipv4_addr;
+  if (!address.DescribeAsIPv4Address(&ipv4_addr)) {
+    // TODO: Implement IPv6 support, once mosh itself supports it.
+    NaClDebug("NativeUDP::Received(): Failed to convert address.");
+    return;
+  }
+
+  struct msghdr *message = (struct msghdr *)malloc(sizeof(struct msghdr));
+  memset(message, 0, sizeof(*message));
+
+  struct sockaddr_in *addr =
+      (struct sockaddr_in *)malloc(sizeof(struct sockaddr_in));
+  addr->sin_family = AF_INET;
+  addr->sin_port = ipv4_addr.port;
+  uint32_t a = 0;
+  for (int i = 0; i < 4; ++i) {
+    a |= ipv4_addr.addr[i] << (8*i);
+  }
+  addr->sin_addr.s_addr = a;
+  message->msg_name = addr;
+  message->msg_namelen = sizeof(*addr);
+
+  message->msg_iov = (struct iovec *)malloc(sizeof(struct iovec));
+  message->msg_iovlen = 1;
+  message->msg_iov->iov_base = malloc(result);
+  message->msg_iov->iov_len = result;
+  memcpy(
+      message->msg_iov->iov_base, receive_buffer_, message->msg_iov->iov_len);
+
+  NaClDebug("NativeUDP::Received(): AddPacket(%llx)", message);
+  AddPacket(message); // Takes ownership.
+
   // Await another packet.
   StartReceive(0);
 }

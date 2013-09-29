@@ -23,7 +23,9 @@
 
 #include "pepper_posix_selector.h"
 
+#include <deque>
 #include <vector>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -39,8 +41,8 @@ namespace PepperPOSIX {
 class UDP {
  public:
   // UDP constructs with a Target, from Selector::GetTarget().
-  UDP(Target* target) : target_(target), next_fd_(42) {}
-  virtual ~UDP() { delete target_; }
+  UDP(Target *target);
+  virtual ~UDP();
 
   // Socket replaces socket(), and returns a new fd.
   int Socket();
@@ -49,15 +51,15 @@ class UDP {
   int Dup(int fd);
 
   // Receive replaces recvmsg(); see its documentation for usage.
-  ssize_t Receive(int fd, struct ::msghdr* message, int flags);
+  ssize_t Receive(int fd, struct ::msghdr *message, int flags);
 
   // Bind replaces bind().
-  virtual int Bind(int fd, const PP_NetAddress_IPv4& address) = 0;
+  virtual int Bind(int fd, const PP_NetAddress_IPv4 &address) = 0;
 
   // Send replaces sendto(). Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-    int fd, const vector<char>& buf, int flags,
-    const PP_NetAddress_IPv4& address) = 0;
+    int fd, const vector<char> &buf, int flags,
+    const PP_NetAddress_IPv4 &address) = 0;
 
   // Close replaces close().
   int Close(int fd);
@@ -65,16 +67,18 @@ class UDP {
  protected:
   // AddPacket is used by the subclass to add a packet to the incoming queue.
   // This method can be called from another thread than the one used to call
-  // the other methods.
-  void AddPacket(struct ::msghdr* message);
+  // the other methods. Takes ownership of *message and its associated buffers.
+  void AddPacket(struct ::msghdr *message);
  
  private:
   Target* target_;
   int next_fd_;
+  std::deque<struct ::msghdr *> packets_; // Guard with packets_lock_.
+  pthread_mutex_t packets_lock_;
 
   // Disable copy and assignment.
-  UDP(const UDP&);
-  UDP& operator=(const UDP&);
+  UDP(const UDP &);
+  UDP& operator=(const UDP &);
 };
 
 // StubUDP is an instantiatable stubbed subclass of UDP for debugging.
@@ -85,17 +89,17 @@ class StubUDP : public UDP {
   virtual ~StubUDP() {}
 
   // Bind replaces bind().
-  virtual int Bind(int fd, const PP_NetAddress_IPv4& address);
+  virtual int Bind(int fd, const PP_NetAddress_IPv4 &address);
 
   // Send replaces sendto. Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-    int fd, const vector<char>& buf, int flags,
-    const PP_NetAddress_IPv4& address);
+    int fd, const vector<char> &buf, int flags,
+    const PP_NetAddress_IPv4 &address);
 
  private:
   // Disable copy and assignment.
-  StubUDP(const StubUDP&);
-  StubUDP& operator=(const StubUDP&);
+  StubUDP(const StubUDP &);
+  StubUDP& operator=(const StubUDP &);
 };
 
 } // namespace PepperPOSIX
