@@ -35,8 +35,8 @@ Selector::~Selector() {
   pthread_mutex_destroy(&notify_mutex_);
 }
 
-Target* Selector::NewTarget() {
-  Target* t = new Target(this);
+Target* Selector::NewTarget(int id) {
+  Target* t = new Target(this, id);
   targets_.push_back(t);
   return t;
 }

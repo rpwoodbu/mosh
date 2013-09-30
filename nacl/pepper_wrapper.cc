@@ -52,6 +52,12 @@ int mosh_main(int argc, char* argv[]);
 // module.
 static class MoshClientInstance* instance = NULL;
 
+// Enum for identifying different Targets.
+enum TARGETS {
+  TARGET_KEYBOARD,
+  TARGET_UDP,
+};
+
 class MoshClientInstance : public pp::Instance {
  public:
   explicit MoshClientInstance(PP_Instance instance) :
@@ -60,7 +66,7 @@ class MoshClientInstance : public pp::Instance {
     ++num_instances_;
     assert (num_instances_ == 1);
     ::instance = this;
-    pthread_mutex_init(&input_lock_, NULL);
+    pthread_mutex_init(&keypresses_lock_, NULL);
   }
 
   virtual ~MoshClientInstance() {
@@ -71,15 +77,17 @@ class MoshClientInstance : public pp::Instance {
     delete[] addr_;
     delete[] port_;
     delete udp_;
+    delete keyboard_target_;
     delete selector_;
-    pthread_mutex_destroy(&input_lock_);
+    pthread_mutex_destroy(&keypresses_lock_);
   }
 
   virtual void HandleMessage(const pp::Var& var) {
     if (var.is_number()) {
-      pthread_mutex_lock(&input_lock_);
-      input_.push_back(var.AsInt());
-      pthread_mutex_unlock(&input_lock_);
+      pthread_mutex_lock(&keypresses_lock_);
+      keypresses_.push_back(var.AsInt());
+      pthread_mutex_unlock(&keypresses_lock_);
+      keyboard_target_->Update(true);
     } else if (var.is_string() && var.AsString() == "hello") {
       PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
     } else {
@@ -109,7 +117,9 @@ class MoshClientInstance : public pp::Instance {
 
     // Setup communications.
     selector_ = new PepperPOSIX::Selector();
-    udp_ = new PepperPOSIX::NativeUDP(instance_handle_, selector_->NewTarget());
+    udp_ = new PepperPOSIX::NativeUDP(
+        instance_handle_, selector_->NewTarget(TARGET_UDP));
+    keyboard_target_ = selector_->NewTarget(TARGET_KEYBOARD);
 
     // Launch mosh-client.
     pthread_create(&thread_, NULL, &Launch, this);
@@ -130,9 +140,11 @@ class MoshClientInstance : public pp::Instance {
   PepperPOSIX::Selector *selector_;
   // UDP object that stubs will use.
   PepperPOSIX::UDP *udp_;
-  // Queue of input characters.
-  std::deque<char> input_; // Guard with input_lock_.
-  pthread_mutex_t input_lock_;
+  // Target for managing keyboard input.
+  PepperPOSIX::Target *keyboard_target_;
+  // Queue of keyboard keypresses.
+  std::deque<char> keypresses_; // Guard with keypresses_lock_.
+  pthread_mutex_t keypresses_lock_;
 
  private:
   static int num_instances_; // This needs to be a singleton.
@@ -265,15 +277,16 @@ ssize_t read(int fd, void* buf, size_t count) {
     }
     // TODO: Could submit in batches, but rarely will get in batches.
     int result = 0;
-    pthread_mutex_lock(&instance->input_lock_);
-    if (instance->input_.size() > 0) {
-      ((char *)buf)[0] = instance->input_.front();
-      instance->input_.pop_front();
+    pthread_mutex_lock(&instance->keypresses_lock_);
+    if (instance->keypresses_.size() > 0) {
+      ((char *)buf)[0] = instance->keypresses_.front();
+      instance->keypresses_.pop_front();
+      instance->keyboard_target_->Update(instance->keypresses_.size() > 0);
       result = 1;
     } else {
       NaClDebug("read(): From STDIN, no data, treat as nonblocking.");
     }
-    pthread_mutex_unlock(&instance->input_lock_);
+    pthread_mutex_unlock(&instance->keypresses_lock_);
     return result;
   }
 
@@ -334,20 +347,36 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     }
   }
   */
+  bool got_udp = false;
+  bool got_keyboard = false;
 
-  const vector<PepperPOSIX::Target*> targets =
+  vector<PepperPOSIX::Target *> targets =
     instance->selector_->SelectAll(timeout);
-  if (targets.size() == 0) {
-    // TODO: Consider how to break this down to individual descriptors.
+  for (vector<PepperPOSIX::Target *>::iterator i = targets.begin();
+      i != targets.end();
+      ++i) {
+    switch ((*i)->id()) {
+    case TARGET_UDP:
+      got_udp = true;
+      break;
+    case TARGET_KEYBOARD:
+      got_keyboard = true;
+      break;
+    }
+  }
+
+  if (!got_udp) {
+    // TODO: Clean this up; not dealing with file descriptors at all, and just
+    // assuming any file descriptor != 0 is UDP.
     FD_ZERO(readfds);
   }
 
-  if (FD_ISSET(0, readfds)) {
-    pthread_mutex_lock(&instance->input_lock_);
-    if (instance->input_.size() == 0) {
-      FD_CLR(0, readfds);
-    }
-    pthread_mutex_unlock(&instance->input_lock_);
+  // Just assuming the caller cares about STDIN. Must explicitly set and clear,
+  // to ensure no damage from hack above.
+  if (got_keyboard) {
+    FD_SET(0, readfds);
+  } else {
+    FD_CLR(0, readfds);
   }
 
   FD_ZERO(exceptfds);

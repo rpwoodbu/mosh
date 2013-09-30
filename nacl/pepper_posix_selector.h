@@ -44,8 +44,9 @@ class Selector {
   // NewTarget creates a new Target instance for use by an I/O class. The
   // returned Target is owned by the caller, but Selector maintains a pointer
   // to it for the life of the Target. It is an error to delete Selector until
-  // all Targets are deleted.
-  Target* NewTarget();
+  // all Targets are deleted. id is an opaque identifier for the user to
+  // distinguish one Target from another.
+  Target* NewTarget(int id);
 
   // Select returns a subset of targets for which data is available, or 
   // waits until the timeout period has passed. It calls
@@ -87,7 +88,7 @@ class Selector {
 // Update() whenever data availability changes.
 class Target {
  public:
-  Target(class Selector* s) : selector_(s), has_data_(false) {}
+  Target(class Selector* s, int id) : selector_(s), id_(id), has_data_(false) {}
   ~Target();
 
   // Update updates Target whether there is pending data available in the I/O
@@ -98,9 +99,11 @@ class Target {
   void Update(bool has_data);
 
   const bool has_data() { return has_data_; }
+  const int id() { return id_; }
 
  private:
   class Selector* selector_;
+  int id_;
   bool has_data_;
 
   // Disable copy and assignment.
