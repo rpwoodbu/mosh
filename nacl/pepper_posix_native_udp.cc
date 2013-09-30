@@ -96,8 +96,8 @@ void NativeUDP::StartReceive(int32_t unused) {
 
 // Received is the callback result of StartReceive().
 void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
-  NaClDebug("NativeUDP::Received(): Got %d from %s",
-      result, address.DescribeAsString(true).AsString().c_str());
+  //NaClDebug("NativeUDP::Received(): Got %d from %s",
+  //    result, address.DescribeAsString(true).AsString().c_str());
 
   PP_NetAddress_IPv4 ipv4_addr;
   if (!address.DescribeAsIPv4Address(&ipv4_addr)) {
@@ -128,7 +128,7 @@ void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
   memcpy(
       message->msg_iov->iov_base, receive_buffer_, message->msg_iov->iov_len);
 
-  NaClDebug("NativeUDP::Received(): AddPacket(%llx)", message);
+  //NaClDebug("NativeUDP::Received(): AddPacket(%llx)", message);
   AddPacket(message); // Takes ownership.
 
   // Await another packet.

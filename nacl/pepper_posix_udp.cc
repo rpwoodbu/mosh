@@ -71,7 +71,7 @@ int UDP::Dup(int fd) {
 }
 
 ssize_t UDP::Receive(int fd, struct ::msghdr *message, int flags) {
-  NaClDebug("UDP::Receive(%d, %llx, %x)", fd, message, flags);
+  //NaClDebug("UDP::Receive(%d, %llx, %x)", fd, message, flags);
 
   pthread_mutex_lock(&packets_lock_);
   if (packets_.size() == 0) {
@@ -108,8 +108,8 @@ ssize_t UDP::Receive(int fd, struct ::msghdr *message, int flags) {
 }
 
 void UDP::AddPacket(struct ::msghdr *message) {
-  NaClDebug("UDP::AddPacket(%llx)", message);
-  NaClDebug("UDP::AddPacket(): sa_family: %d", ((::sockaddr *)message->msg_name)->sa_family);
+  //NaClDebug("UDP::AddPacket(%llx)", message);
+  //NaClDebug("UDP::AddPacket(): sa_family: %d", ((::sockaddr *)message->msg_name)->sa_family);
   pthread_mutex_lock(&packets_lock_);
   packets_.push_back(message);
   pthread_mutex_unlock(&packets_lock_);
