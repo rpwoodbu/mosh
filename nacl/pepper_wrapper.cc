@@ -190,6 +190,7 @@ int setrlimit(int resource, const struct rlimit* rlim) {
 // rethought. For now, stub it out to see how far it'll go without it.
 int sigaction(int signum, const struct sigaction* act,
     struct sigaction* oldact) {
+  NaClDebug("sigaction(%d, ...)", signum);
   return 0;
 }
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
@@ -231,6 +232,7 @@ int tcsetattr(int fd, int optional_sctions, const struct termios* termios_p) {
 // TODO: Wire this into hterm.
 int ioctl(int d, long unsigned int request, ...) {
   if (d != STDIN_FILENO || request != TIOCGWINSZ) {
+    NaClDebug("ioctl(%d, %u, ...): Got unexpected call", d, request);
     errno = EPROTO;
     return -1;
   }
@@ -243,29 +245,29 @@ int ioctl(int d, long unsigned int request, ...) {
   return 0;
 }
 
-/* TODO: Intercept ifstream; this doesn't seem to work.
-// Emulate /dev/urandom, but don't interfere with closing of sockets.
-const int RANDOM_FD = 24;
-int open(const char* pathname, int flags, ...) {
-  string path = pathname;
-  if (path != "/dev/urandom") {
-    NaClDebug("opening something NOT /dev/urandom! (%s)", pathname);
-    errno = EACCES;
-    return -1;
-  }
-  NaClDebug("open stub called for /dev/urandom");
-  return RANDOM_FD;
-}
+// TODO: Determine if it is necessary to emulate /dev/urandom.
+
 ssize_t read(int fd, void* buf, size_t count) {
-  if (fd != RANDOM_FD) {
-    NaClDebug("read stub called for some other FD! (%d)", fd);
-    errno = EIO;
-    return -1;
+  switch (fd) {
+  case 0: // STDIN
+    // For debugging, just one time return something to emulate typing.
+    static bool sent = false;
+    if (!sent) {
+      NaClDebug("read(): From STDIN first time, send a command.");
+      const char *command = "echo Hello Mosh NaCl World\r";
+      strcpy((char *)buf, command);
+      sent = true;
+      return strlen(command);
+    } else {
+      NaClDebug("read(): From STDIN... treat as nonblocking.");
+      return 0;
+    }
   }
-  // TODO: Properly emulate /dev/urandom.
-  return count;
+
+  NaClDebug("read(%d, ...): Unexpected read.", fd);
+  errno = EIO;
+  return -1;
 }
-*/
 int close(int fd) {
   return instance->udp_->Close(fd);
 }
@@ -308,12 +310,36 @@ int dup(int oldfd) {
 }
 int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     const struct timespec* timeout, const sigset_t* sigmask) {
+  /*
+  // Debugging output only:
+  for (int fd = 0; fd < nfds; ++fd) {
+    if (readfds != NULL && FD_ISSET(fd, readfds)) {
+      NaClDebug("pselect(): read %d", fd);
+    }
+    if (writefds != NULL && FD_ISSET(fd, writefds)) {
+      NaClDebug("pselect(): write %d", fd);
+    }
+  }
+  */
+
   const vector<PepperPOSIX::Target*> targets =
     instance->selector_->SelectAll(timeout);
   if (targets.size() == 0) {
     // TODO: Consider how to break this down to individual descriptors.
     FD_ZERO(readfds);
   }
+
+  // TODO: Handle STDIN properly.
+  // Debugging: Accept only one read.
+  static bool oneshot = false;
+  if (FD_ISSET(0, readfds)) {
+    if (oneshot) {
+      FD_CLR(0, readfds);
+    } else {
+      oneshot = true;
+    }
+  }
+
   FD_ZERO(exceptfds);
   return 0;
 }
