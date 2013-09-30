@@ -18,10 +18,10 @@ statusText = 'NO-STATUS';
 
 // Indicate load success.
 function moduleDidLoad() {
-  MoshClientModule = document.getElementById('mosh_client');
+  //MoshClientModule = document.getElementById('mosh_client');
   updateStatus('SUCCESS');
   // Send a message to the NaCl module.
-  MoshClientModule.postMessage('hello');
+  //MoshClientModule.postMessage('hello');
 }
 
 // The 'message' event handler.  This handler is fired when the NaCl module
@@ -40,6 +40,8 @@ onload = function() {
   var listener = document.getElementById('listener');
   listener.addEventListener('load', moduleDidLoad, true);
   listener.addEventListener('message', handleMessage, true);
+
+  addEventListener('keypress', handleKeypress, true);
 
   if (MoshClientModule == null) {
     updateStatus('LOADING...');
@@ -66,31 +68,8 @@ function updateStatus(opt_message) {
   }
 }
 
-/*
-var socketId = -1;
-
-var handleDataEvent = function(r) {
-  console.log(r);
-  chrome.socket.read(socketId, 1500, handleDataEvent);
+// Handle keypresses.
+function handleKeypress() {
+  mosh = document.getElementById('mosh_client');
+  mosh.postMessage(this.event.charCode);
 }
-
-onload = function() {
-  var buf = new ArrayBuffer(2);
-  var bufView = new Uint8Array(buf);
-  bufView[0] = 52;
-  bufView[1] = 50;
-  chrome.socket.create('udp', {}, function(socketInfo) {
-    socketId = socketInfo.socketId;
-    chrome.socket.connect(socketId, '127.0.0.1', 1337, function(result) {
-      chrome.socket.read(socketId, 1500, handleDataEvent);
-      button = document.getElementById('my-button');
-      button.onclick = function(e) {
-        chrome.socket.write(socketId, buf, function(sendInfo) {
-          button.textContent = "wrote " + sendInfo.bytesWritten;
-        });
-      };
-    });
-  });
-
-};
-*/

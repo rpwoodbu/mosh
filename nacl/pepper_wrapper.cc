@@ -16,6 +16,7 @@
 #include "pepper_posix_selector.h"
 #include "pepper_posix_native_udp.h"
 
+#include <deque>
 #include <string>
 #include <vector>
 #include <errno.h>
@@ -59,6 +60,7 @@ class MoshClientInstance : public pp::Instance {
     ++num_instances_;
     assert (num_instances_ == 1);
     ::instance = this;
+    pthread_mutex_init(&input_lock_, NULL);
   }
 
   virtual ~MoshClientInstance() {
@@ -70,14 +72,18 @@ class MoshClientInstance : public pp::Instance {
     delete[] port_;
     delete udp_;
     delete selector_;
+    pthread_mutex_destroy(&input_lock_);
   }
 
   virtual void HandleMessage(const pp::Var& var) {
-    if (!var.is_string()) {
-      return;
-    }
-    if (var.AsString() == "hello") {
+    if (var.is_number()) {
+      pthread_mutex_lock(&input_lock_);
+      input_.push_back(var.AsInt());
+      pthread_mutex_unlock(&input_lock_);
+    } else if (var.is_string() && var.AsString() == "hello") {
       PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
+    } else {
+      PostMessage(pp::Var("Got some weird message."));
     }
   }
 
@@ -124,6 +130,9 @@ class MoshClientInstance : public pp::Instance {
   PepperPOSIX::Selector *selector_;
   // UDP object that stubs will use.
   PepperPOSIX::UDP *udp_;
+  // Queue of input characters.
+  std::deque<char> input_; // Guard with input_lock_.
+  pthread_mutex_t input_lock_;
 
  private:
   static int num_instances_; // This needs to be a singleton.
@@ -250,18 +259,22 @@ int ioctl(int d, long unsigned int request, ...) {
 ssize_t read(int fd, void* buf, size_t count) {
   switch (fd) {
   case 0: // STDIN
-    // For debugging, just one time return something to emulate typing.
-    static bool sent = false;
-    if (!sent) {
-      NaClDebug("read(): From STDIN first time, send a command.");
-      const char *command = "echo Hello Mosh NaCl World\r";
-      strcpy((char *)buf, command);
-      sent = true;
-      return strlen(command);
-    } else {
-      NaClDebug("read(): From STDIN... treat as nonblocking.");
+    if (count < 1) {
+      // Cannot do anything with an empty buffer.
       return 0;
     }
+    // TODO: Could submit in batches, but rarely will get in batches.
+    int result = 0;
+    pthread_mutex_lock(&instance->input_lock_);
+    if (instance->input_.size() > 0) {
+      ((char *)buf)[0] = instance->input_.front();
+      instance->input_.pop_front();
+      result = 1;
+    } else {
+      NaClDebug("read(): From STDIN, no data, treat as nonblocking.");
+    }
+    pthread_mutex_unlock(&instance->input_lock_);
+    return result;
   }
 
   NaClDebug("read(%d, ...): Unexpected read.", fd);
@@ -329,15 +342,12 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     FD_ZERO(readfds);
   }
 
-  // TODO: Handle STDIN properly.
-  // Debugging: Accept only one read.
-  static bool oneshot = false;
   if (FD_ISSET(0, readfds)) {
-    if (oneshot) {
+    pthread_mutex_lock(&instance->input_lock_);
+    if (instance->input_.size() == 0) {
       FD_CLR(0, readfds);
-    } else {
-      oneshot = true;
     }
+    pthread_mutex_unlock(&instance->input_lock_);
   }
 
   FD_ZERO(exceptfds);
