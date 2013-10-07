@@ -18,10 +18,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 <head>
   <title>mosh_client</title>
   <script src="mosh_client.js" type="text/javascript"></script>
+  <script src="hterm/hterm_deps.js" type="text/javascript"></script>
+  <script src="hterm/hterm.js" type="text/javascript"></script>
 </head>
 <body>
-<h1>Mosh Native Client</h1>
-<p>
   <!-- Load the published .nexe.  This includes the 'nacl' attribute which
   shows how to load multi-architecture modules.  Each entry in the "nexes"
   object in the .nmf manifest file is a key-value pair: the key is the
@@ -46,14 +46,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
        id="mosh_client"
        width=0 height=0
        src="mosh_client.nmf"
-       key="WT+MdvOOXtwp8+RJn5KPfg"
-       addr="192.168.11.125"
+       key="EN6rEFWsEVh0DsFArIzJDQ"
+       addr="192.168.11.103"
        port="60001"
        type="application/x-nacl" />
   </div>
-</p>
-
-<h2>Status</h2>
-<div id="status_field" style="height:300px; overflow:auto;">NO-STATUS</div>
+  <div id="terminal"></div>
 </body>
 </html>

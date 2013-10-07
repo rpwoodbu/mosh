@@ -83,13 +83,14 @@ class MoshClientInstance : public pp::Instance {
   }
 
   virtual void HandleMessage(const pp::Var& var) {
-    if (var.is_number()) {
+    if (var.is_string()) {
+      string s = var.AsString();
       pthread_mutex_lock(&keypresses_lock_);
-      keypresses_.push_back(var.AsInt());
+      for (int i = 0; i < s.size(); ++i) {
+        keypresses_.push_back(s[i]);
+      }
       pthread_mutex_unlock(&keypresses_lock_);
       keyboard_target_->Update(true);
-    } else if (var.is_string() && var.AsString() == "hello") {
-      PostMessage(pp::Var("Greetings from the Mosh Native Client!"));
     } else {
       PostMessage(pp::Var("Got some weird message."));
     }
@@ -175,7 +176,7 @@ void NaClDebug(const char* fmt, ...) {
   va_start(argp, fmt);
   vsnprintf(buf, sizeof(buf), fmt, argp);
   buf[sizeof(buf)-1] = 0;
-  instance->PostMessage(pp::Var(buf));
+  //instance->PostMessage(pp::Var(buf));
 }
 
 // Make a PP_NetAddress_IPv4 from sockaddr.
@@ -294,6 +295,20 @@ ssize_t read(int fd, void* buf, size_t count) {
   errno = EIO;
   return -1;
 }
+
+ssize_t write(int fd, const void *buf, size_t count) {
+ switch (fd) {
+ case 1: // STDOUT
+   string b((const char *)buf, count);
+   instance->PostMessage(pp::Var(b));
+   return count;
+ }
+
+ NaClDebug("write(%d, ...): Unexpected write.", fd);
+ errno = EIO;
+ return -1;
+}
+
 int close(int fd) {
   return instance->udp_->Close(fd);
 }
