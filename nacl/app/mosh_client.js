@@ -16,21 +16,34 @@
 'use strict';
 
 window.onload = function() {
-  function execMosh() {
-    var terminal = new hterm.Terminal("mosh");
-    terminal.decorate(document.querySelector('#terminal'));
-    terminal.onTerminalReady = function() {
-      terminal.setCursorPosition(0, 0);
-      terminal.setCursorVisible(true);
-      terminal.runCommandClass(mosh.CommandInstance, '');
-    };
+  var connectButton = document.querySelector('#connect');
+  connectButton.onclick = onConnectClick;
+};
 
-    // Useful for console debugging.
-    window.term_ = terminal;
+function execMosh() {
+  var args = {}
+  args.addr = document.querySelector('#addr').value;
+  args.port = document.querySelector('#port').value;
+  args.key = document.querySelector('#key').value;
+
+  var form = document.querySelector('#args');
+  form.parentNode.removeChild(form);
+
+  var terminal = new hterm.Terminal("mosh");
+  terminal.decorate(document.querySelector('#terminal'));
+  terminal.onTerminalReady = function() {
+    terminal.setCursorPosition(0, 0);
+    terminal.setCursorVisible(true);
+    terminal.runCommandClass(mosh.CommandInstance, args);
   };
 
+  // Useful for console debugging.
+  window.term_ = terminal;
+};
+
+function onConnectClick(e) {
   lib.init(execMosh, console.log.bind(console));
-}
+};
 
 var mosh = {};
 
@@ -64,9 +77,9 @@ mosh.CommandInstance.prototype.run = function() {
       'height: 0;');
   this.moshNaCl_.setAttribute('src', 'mosh_client.nmf');
   this.moshNaCl_.setAttribute('type', 'application/x-nacl');
-  this.moshNaCl_.setAttribute('key', 'ExmWlnI90NCuZCSMobsGSg');
-  this.moshNaCl_.setAttribute('addr', '192.168.11.103');
-  this.moshNaCl_.setAttribute('port', '60001');
+  this.moshNaCl_.setAttribute('key', this.argv_.argString.key);
+  this.moshNaCl_.setAttribute('addr', this.argv_.argString.addr);
+  this.moshNaCl_.setAttribute('port', this.argv_.argString.port);
   this.moshNaCl_.addEventListener('load', function(e) {
     console.log('Mosh NaCl loaded.');
   });
