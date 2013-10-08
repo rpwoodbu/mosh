@@ -70,6 +70,9 @@ THIS_MAKEFILE:=$(abspath $(lastword $(MAKEFILE_LIST)))
 # Declare the ALL target first, to make the 'all' target the default build
 all: $(PROJECT).zip
 
+# Convenience target for skipping the .zip file.
+nmf: $(PROJECT).nmf
+
 $(PROJECT).zip : $(PROJECT).nmf
 	pushd $(OUTDIR) && zip -r ../$(PROJECT).zip . && popd
 

@@ -74,6 +74,10 @@ fi
 
 echo "Building .nexe..."
 make clean
-make
+if [[ ${FAST} == "fast" ]]; then
+  make nmf
+else
+  make all
+fi
 
 echo "Done."
