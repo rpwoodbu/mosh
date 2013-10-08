@@ -80,6 +80,7 @@ ssize_t UDP::Receive(int fd, struct ::msghdr *message, int flags) {
   }
   struct ::msghdr *latest = packets_.front();
   packets_.pop_front();
+  target_->Update(packets_.size() > 0);
   pthread_mutex_unlock(&packets_lock_);
 
   if (message->msg_namelen >= latest->msg_namelen) {
@@ -102,8 +103,6 @@ ssize_t UDP::Receive(int fd, struct ::msghdr *message, int flags) {
   // TODO: Ignoring flags, msg_flags, and msg_control for now.
 
   DestroyMessage(latest);
-
-  target_->Update(false);
   return size;
 }
 
