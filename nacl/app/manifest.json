@@ -4,7 +4,7 @@
   "name": "Mosh Client",
   "description": "Mosh Client",
   "offline_enabled": true,
-  "version": "0.1",
+  "version": "0.0.0.1",
   "app": {
     "background": {
       "scripts": ["background.js"]

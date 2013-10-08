@@ -68,7 +68,10 @@ PNACL_CXXFLAGS:=$(CXXFLAGS) -DUSE_NEWLIB $(COMPAT_INC)
 THIS_MAKEFILE:=$(abspath $(lastword $(MAKEFILE_LIST)))
 
 # Declare the ALL target first, to make the 'all' target the default build
-all: $(PROJECT).nmf
+all: $(PROJECT).zip
+
+$(PROJECT).zip : $(PROJECT).nmf
+	pushd $(OUTDIR) && zip -r ../$(PROJECT).zip . && popd
 
 # Define 32 bit compile and link rules for C++ sources
 x86_32_OBJS:=$(patsubst %.cc,%_32.o,$(CXX_SOURCES))
@@ -91,4 +94,5 @@ $(PROJECT).nmf : $(PROJECT)_x86_64.nexe
 	$(NACL_SDK_ROOT)/tools/create_nmf.py $< -o $@ -s $(OUTDIR)
 
 clean:
-	rm -rf *.o $(PROJECT)*.nexe $(PROJECT).pexe $(PROJECT).nmf $(OUTDIR)/lib*
+	rm -rf *.o $(PROJECT).zip $(PROJECT)*.nexe $(PROJECT).pexe \
+	$(PROJECT).nmf $(OUTDIR)/lib*
