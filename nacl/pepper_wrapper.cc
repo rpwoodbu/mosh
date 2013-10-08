@@ -56,13 +56,15 @@ static class MoshClientInstance* instance = NULL;
 enum TARGETS {
   TARGET_KEYBOARD,
   TARGET_UDP,
+  TARGET_WINDOW_CHANGE,
 };
 
 class MoshClientInstance : public pp::Instance {
  public:
   explicit MoshClientInstance(PP_Instance instance) :
       pp::Instance(instance), addr_(NULL), port_(NULL),
-      udp_(NULL), selector_(NULL), instance_handle_(this) {
+      udp_(NULL), selector_(NULL), instance_handle_(this),
+      sigwinch_handler_(NULL), width_(80), height_(24) {
     ++num_instances_;
     assert (num_instances_ == 1);
     ::instance = this;
@@ -91,8 +93,13 @@ class MoshClientInstance : public pp::Instance {
       }
       pthread_mutex_unlock(&keypresses_lock_);
       keyboard_target_->Update(true);
+    } else if (var.is_number()) {
+      int32_t num = var.AsInt();
+      width_ = num >> 16;
+      height_ = num & 0xffff;
+      window_change_target_->Update(true);
     } else {
-      PostMessage(pp::Var("Got some weird message."));
+      fprintf(stderr, "Got a message of an unexpected type.\n");
     }
   }
 
@@ -121,6 +128,7 @@ class MoshClientInstance : public pp::Instance {
     udp_ = new PepperPOSIX::NativeUDP(
         instance_handle_, selector_->NewTarget(TARGET_UDP));
     keyboard_target_ = selector_->NewTarget(TARGET_KEYBOARD);
+    window_change_target_ = selector_->NewTarget(TARGET_WINDOW_CHANGE);
 
     // Launch mosh-client.
     pthread_create(&thread_, NULL, &Launch, this);
@@ -143,9 +151,15 @@ class MoshClientInstance : public pp::Instance {
   PepperPOSIX::UDP *udp_;
   // Target for managing keyboard input.
   PepperPOSIX::Target *keyboard_target_;
+  // Target for handling window size changes.
+  PepperPOSIX::Target *window_change_target_;
   // Queue of keyboard keypresses.
   std::deque<char> keypresses_; // Guard with keypresses_lock_.
   pthread_mutex_t keypresses_lock_;
+  // Handler for window size changes.
+  void (*sigwinch_handler_)(int);
+  // Size of window.
+  int width_, height_;
 
  private:
   static int num_instances_; // This needs to be a singleton.
@@ -213,6 +227,13 @@ int setrlimit(int resource, const struct rlimit* rlim) {
 int sigaction(int signum, const struct sigaction* act,
     struct sigaction* oldact) {
   NaClDebug("sigaction(%d, ...)", signum);
+  assert(oldact == NULL);
+  switch (signum) {
+  case SIGWINCH:
+    instance->sigwinch_handler_ = act->sa_handler;
+    break;
+  }
+
   return 0;
 }
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
@@ -251,7 +272,6 @@ int tcsetattr(int fd, int optional_sctions, const struct termios* termios_p) {
   return 0;
 }
 
-// TODO: Wire this into hterm.
 int ioctl(int d, long unsigned int request, ...) {
   if (d != STDIN_FILENO || request != TIOCGWINSZ) {
     NaClDebug("ioctl(%d, %u, ...): Got unexpected call", d, request);
@@ -261,8 +281,8 @@ int ioctl(int d, long unsigned int request, ...) {
   va_list argp;
   va_start(argp, request);
   struct winsize* ws = va_arg(argp, struct winsize*);
-  ws->ws_row = 24;
-  ws->ws_col = 80;
+  ws->ws_row = instance->height_;
+  ws->ws_col = instance->width_;
   va_end(argp);
   return 0;
 }
@@ -364,6 +384,7 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
   */
   bool got_udp = false;
   bool got_keyboard = false;
+  bool got_window_change = false;
 
   vector<PepperPOSIX::Target *> targets =
     instance->selector_->SelectAll(timeout);
@@ -376,6 +397,9 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
       break;
     case TARGET_KEYBOARD:
       got_keyboard = true;
+      break;
+    case TARGET_WINDOW_CHANGE:
+      got_window_change = true;
       break;
     }
   }
@@ -395,6 +419,14 @@ int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
   }
 
   FD_ZERO(exceptfds);
+
+  // Send a SIGWINCH if pending. This has to be done on the native Mosh thread,
+  // which is why we do it here in the pselect().
+  if (got_window_change) {
+    instance->sigwinch_handler_(SIGWINCH);
+    instance->window_change_target_->Update(false);
+  }
+
   return 0;
 }
 ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {

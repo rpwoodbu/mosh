@@ -67,7 +67,9 @@ mosh.CommandInstance.prototype.run = function() {
   window.mosh_client_ = this;
 
   this.io = this.argv_.io.push();
-  this.io.onVTKeystroke = this.onKeystroke_.bind(this);
+  this.io.onVTKeystroke = this.sendString_.bind(this);
+  this.io.sendString = this.sendString_.bind(this);
+  this.io.onTerminalResize = this.onTerminalResize_.bind(this);
 
   this.moshNaCl_ = window.document.createElement('embed');
   this.moshNaCl_.style.cssText = (
@@ -96,6 +98,11 @@ mosh.CommandInstance.prototype.onMessage_ = function(e) {
   this.io.print(e.data);
 };
 
-mosh.CommandInstance.prototype.onKeystroke_ = function (string) {
+mosh.CommandInstance.prototype.sendString_ = function(string) {
   this.moshNaCl_.postMessage(string);
-}
+};
+
+mosh.CommandInstance.prototype.onTerminalResize_ = function(w, h) {
+  // Send new size as an int, with the width as the high 16 bits.
+  this.moshNaCl_.postMessage((w << 16) + h);
+};
