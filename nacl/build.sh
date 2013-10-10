@@ -44,6 +44,20 @@ pushd ${NACL_PORTS}/src > /dev/null
 make zlib openssl ncurses protobuf
 popd > /dev/null
 
+echo "Updating submodules..."
+pushd .. > /dev/null
+git submodule init
+git submodule update
+popd > /dev/null
+pushd chromium_assets/chromeapps/hterm > /dev/null
+if [[ ! -d dist ]]; then
+  bin/mkdist.sh
+fi
+popd > /dev/null
+# Copy hterm dist files into app directory.
+mkdir -p app/hterm
+cp -f chromium_assets/chromeapps/hterm/dist/js/* app/hterm
+
 source ${NACL_PORTS}/src/build_tools/common.sh
 
 export CC=${NACLCC}

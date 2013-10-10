@@ -1,0 +1,3 @@
+[submodule "nacl/chromium_assets"]
+	path = nacl/chromium_assets
+	url = http://git.chromium.org/chromiumos/platform/assets.git
