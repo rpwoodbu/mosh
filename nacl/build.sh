@@ -58,7 +58,12 @@ popd > /dev/null
 mkdir -p app/hterm
 cp -f chromium_assets/chromeapps/hterm/dist/js/* app/hterm
 
-source ${NACL_PORTS}/src/build_tools/common.sh
+echo "Loading naclports environment..."
+# For some reason I have to build NACLPORTS_LIBDIR myself, and I need vars to
+# do this that nacl_env.sh generates, so I end up calling that guy twice.
+. ${NACL_PORTS}/src/build_tools/nacl_env.sh
+export NACLPORTS_LIBDIR=${NACL_TOOLCHAIN_ROOT}/${NACL_CROSS_PREFIX}/usr/lib
+eval $(${NACL_PORTS}/src/build_tools/nacl_env.sh --print)
 
 export CC=${NACLCC}
 export CXX=${NACLCXX}
@@ -78,8 +83,7 @@ if [[ ${FAST} != "fast" ]]; then
     ./autogen.sh
   fi
   echo "Configuring..."
-  ./configure --host=nacl --prefix=${NACLPORTS_PREFIX} \
-    --enable-client=yes --enable-server=no # --disable-silent-rules
+  ./configure --host=nacl --enable-client=yes --enable-server=no
   echo "Building Mosh with NaCl compiler..."
   make clean
   make || echo "Ignore error."
