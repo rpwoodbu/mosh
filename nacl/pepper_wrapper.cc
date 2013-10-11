@@ -138,7 +138,7 @@ class MoshClientInstance : public pp::Instance {
   static void* Launch(void* data) {
     MoshClientInstance* thiz = reinterpret_cast<MoshClientInstance*>(data);
 
-    setenv("TERM", "vt100", 1);
+    setenv("TERM", "xterm-256color", 1);
     char* argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
     mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
     thiz->PostMessage(pp::Var("Mosh has exited."));
