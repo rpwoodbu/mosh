@@ -13,8 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#include "pepper_posix_selector.h"
-#include "pepper_posix_native_udp.h"
+#include "pepper_posix.h"
 
 #include <deque>
 #include <string>
@@ -36,7 +35,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "ppapi/c/ppb_net_address.h"
 #include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/instance_handle.h"
 #include "ppapi/cpp/module.h"
@@ -52,23 +50,107 @@ int mosh_main(int argc, char* argv[]);
 // module.
 static class MoshClientInstance* instance = NULL;
 
-// Enum for identifying different Targets.
-enum TARGETS {
-  TARGET_KEYBOARD,
-  TARGET_UDP,
-  TARGET_WINDOW_CHANGE,
+// TODO: Eliminate this debugging hack.
+void NaClDebug(const char* fmt, ...) {
+  char buf[256];
+  va_list argp;
+  va_start(argp, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, argp);
+  buf[sizeof(buf)-1] = 0;
+  fprintf(stderr, "%s\n", buf);
+  //instance->PostMessage(pp::Var(buf));
+}
+
+// Implements most of the plumbing to get keystrokes to Mosh. A tiny amount of
+// plumbing is in the MoshClientInstance::HandleMessage().
+class Keyboard : public PepperPOSIX::Reader {
+ public:
+  Keyboard() : Reader(NULL) {
+    pthread_mutex_init(&keypresses_lock_, NULL);
+  }
+  virtual ~Keyboard() {
+    pthread_mutex_destroy(&keypresses_lock_);
+  }
+
+  virtual ssize_t Read(void* buf, size_t count) {
+    // TODO: Could submit in batches, but rarely will get in batches.
+    int result = 0;
+    pthread_mutex_lock(&keypresses_lock_);
+    if (keypresses_.size() > 0) {
+      ((char *)buf)[0] = keypresses_.front();
+      keypresses_.pop_front();
+      target_->Update(keypresses_.size() > 0);
+      result = 1;
+    } else {
+      NaClDebug("read(): From STDIN, no data, treat as nonblocking.");
+    }
+    pthread_mutex_unlock(&keypresses_lock_);
+    return result;
+  }
+
+  // Handle input from the keyboard.
+  void HandleInput(string input) {
+    pthread_mutex_lock(&keypresses_lock_);
+    for (int i = 0; i < input.size(); ++i) {
+      keypresses_.push_back(input[i]);
+    }
+    pthread_mutex_unlock(&keypresses_lock_);
+    target_->Update(true);
+  }
+
+  // Used as STDIN; should not be closed.
+  virtual int Close() { return 0; };
+
+ private:
+  // Queue of keyboard keypresses.
+  std::deque<char> keypresses_; // Guard with keypresses_lock_.
+  pthread_mutex_t keypresses_lock_;
+};
+
+// Implements the plumbing to get SIGWINCH to Mosh. A tiny amount of plumbing
+// is in MoshClientInstance::HandleMessage();
+class WindowChange : public PepperPOSIX::Signal {
+ public:
+  WindowChange() : Signal(NULL), sigwinch_handler_(NULL),
+      width_(80), height_(24) {}
+
+  // Update geometry and send SIGWINCH.
+  void Update(int width, int height) {
+    width_ = width;
+    height_ = height;
+    target_->Update(true);
+  }
+
+  void SetHandler(void (*sigwinch_handler)(int)) {
+    sigwinch_handler_ = sigwinch_handler;
+  }
+
+  virtual void Handle() {
+    sigwinch_handler_(SIGWINCH);
+    target_->Update(false);
+  }
+
+  // Doesn't really make sense to close this, but required to implemenet.
+  virtual int Close() { return 0; };
+
+  int height() { return height_; }
+  int width() { return width_; }
+
+ private:
+  int width_;
+  int height_;
+  void (*sigwinch_handler_)(int);
 };
 
 class MoshClientInstance : public pp::Instance {
  public:
   explicit MoshClientInstance(PP_Instance instance) :
       pp::Instance(instance), addr_(NULL), port_(NULL),
-      udp_(NULL), selector_(NULL), instance_handle_(this),
-      sigwinch_handler_(NULL), width_(80), height_(24) {
+      posix_(NULL), keyboard_(NULL), instance_handle_(this),
+      window_change_(NULL) {
     ++num_instances_;
     assert (num_instances_ == 1);
     ::instance = this;
-    pthread_mutex_init(&keypresses_lock_, NULL);
   }
 
   virtual ~MoshClientInstance() {
@@ -78,26 +160,16 @@ class MoshClientInstance : public pp::Instance {
     }
     delete[] addr_;
     delete[] port_;
-    delete udp_;
-    delete keyboard_target_;
-    delete selector_;
-    pthread_mutex_destroy(&keypresses_lock_);
+    delete posix_;
   }
 
   virtual void HandleMessage(const pp::Var& var) {
     if (var.is_string()) {
       string s = var.AsString();
-      pthread_mutex_lock(&keypresses_lock_);
-      for (int i = 0; i < s.size(); ++i) {
-        keypresses_.push_back(s[i]);
-      }
-      pthread_mutex_unlock(&keypresses_lock_);
-      keyboard_target_->Update(true);
+      keyboard_->HandleInput(s);
     } else if (var.is_number()) {
       int32_t num = var.AsInt();
-      width_ = num >> 16;
-      height_ = num & 0xffff;
-      window_change_target_->Update(true);
+      window_change_->Update(num >> 16, num & 0xffff);
     } else {
       fprintf(stderr, "Got a message of an unexpected type.\n");
     }
@@ -124,11 +196,10 @@ class MoshClientInstance : public pp::Instance {
     }
 
     // Setup communications.
-    selector_ = new PepperPOSIX::Selector();
-    udp_ = new PepperPOSIX::NativeUDP(
-        instance_handle_, selector_->NewTarget(TARGET_UDP));
-    keyboard_target_ = selector_->NewTarget(TARGET_KEYBOARD);
-    window_change_target_ = selector_->NewTarget(TARGET_WINDOW_CHANGE);
+    keyboard_ = new Keyboard();
+    window_change_ = new WindowChange();
+    posix_ = new PepperPOSIX::POSIX(
+        instance_handle_, keyboard_, NULL, NULL, window_change_);
 
     // Launch mosh-client.
     pthread_create(&thread_, NULL, &Launch, this);
@@ -145,21 +216,10 @@ class MoshClientInstance : public pp::Instance {
     return 0;
   }
 
-  // Selector object that stubs will use.
-  PepperPOSIX::Selector *selector_;
-  // UDP object that stubs will use.
-  PepperPOSIX::UDP *udp_;
-  // Target for managing keyboard input.
-  PepperPOSIX::Target *keyboard_target_;
-  // Target for handling window size changes.
-  PepperPOSIX::Target *window_change_target_;
-  // Queue of keyboard keypresses.
-  std::deque<char> keypresses_; // Guard with keypresses_lock_.
-  pthread_mutex_t keypresses_lock_;
-  // Handler for window size changes.
-  void (*sigwinch_handler_)(int);
-  // Size of window.
-  int width_, height_;
+  // Pepper POSIX emulation.
+  PepperPOSIX::POSIX *posix_;
+  // Window change "file"; must be visible to sigaction().
+  WindowChange *window_change_;
 
  private:
   static int num_instances_; // This needs to be a singleton.
@@ -168,6 +228,7 @@ class MoshClientInstance : public pp::Instance {
   char* addr_;
   char* port_;
   pp::InstanceHandle instance_handle_;
+  Keyboard *keyboard_;
 };
 
 // Initialize static data for MoshClientInstance.
@@ -183,32 +244,6 @@ class MoshClientModule : public pp::Module {
   }
 };
 
-// TODO: Eliminate this debugging hack.
-void NaClDebug(const char* fmt, ...) {
-  char buf[256];
-  va_list argp;
-  va_start(argp, fmt);
-  vsnprintf(buf, sizeof(buf), fmt, argp);
-  buf[sizeof(buf)-1] = 0;
-  //instance->PostMessage(pp::Var(buf));
-}
-
-// Make a PP_NetAddress_IPv4 from sockaddr.
-void MakeAddress(const struct sockaddr* addr, socklen_t addrlen,
-    PP_NetAddress_IPv4* pp_addr) {
-  // TODO: Make an IPv6 version, but since mosh doesn't support it now, this
-  // will do.
-  assert(addr->sa_family == AF_INET);
-  assert(addrlen >= 4);
-  const struct sockaddr_in* in_addr = (struct sockaddr_in*)addr;
-  uint32_t a = in_addr->sin_addr.s_addr;
-  for (int i = 0; i < 4; ++i) {
-    pp_addr->addr[i] = a & 0xff;
-    a >>= 8;
-  }
-  pp_addr->port = in_addr->sin_port;
-}
-
 //
 // Implement stubs and overrides for various C library functions.
 //
@@ -222,20 +257,19 @@ int setrlimit(int resource, const struct rlimit* rlim) {
   return 0;
 }
 
-// TODO: sigaction is used for important things. This will need to be
-// rethought. For now, stub it out to see how far it'll go without it.
 int sigaction(int signum, const struct sigaction* act,
     struct sigaction* oldact) {
   NaClDebug("sigaction(%d, ...)", signum);
   assert(oldact == NULL);
   switch (signum) {
   case SIGWINCH:
-    instance->sigwinch_handler_ = act->sa_handler;
+    instance->window_change_->SetHandler(act->sa_handler);
     break;
   }
 
   return 0;
 }
+
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
   return 0;
 }
@@ -281,39 +315,20 @@ int ioctl(int d, long unsigned int request, ...) {
   va_list argp;
   va_start(argp, request);
   struct winsize* ws = va_arg(argp, struct winsize*);
-  ws->ws_row = instance->height_;
-  ws->ws_col = instance->width_;
+  ws->ws_row = instance->window_change_->height();
+  ws->ws_col = instance->window_change_->width();
   va_end(argp);
   return 0;
 }
 
+//
+// Wrap all unistd functions to communicate via the Pepper API.
+//
+
 // TODO: Determine if it is necessary to emulate /dev/urandom.
 
-ssize_t read(int fd, void* buf, size_t count) {
-  switch (fd) {
-  case 0: // STDIN
-    if (count < 1) {
-      // Cannot do anything with an empty buffer.
-      return 0;
-    }
-    // TODO: Could submit in batches, but rarely will get in batches.
-    int result = 0;
-    pthread_mutex_lock(&instance->keypresses_lock_);
-    if (instance->keypresses_.size() > 0) {
-      ((char *)buf)[0] = instance->keypresses_.front();
-      instance->keypresses_.pop_front();
-      instance->keyboard_target_->Update(instance->keypresses_.size() > 0);
-      result = 1;
-    } else {
-      NaClDebug("read(): From STDIN, no data, treat as nonblocking.");
-    }
-    pthread_mutex_unlock(&instance->keypresses_lock_);
-    return result;
-  }
-
-  NaClDebug("read(%d, ...): Unexpected read.", fd);
-  errno = EIO;
-  return -1;
+ssize_t read(int fd, void *buf, size_t count) {
+  return instance->posix_->Read(fd, buf, count);
 }
 
 ssize_t write(int fd, const void *buf, size_t count) {
@@ -330,114 +345,36 @@ ssize_t write(int fd, const void *buf, size_t count) {
 }
 
 int close(int fd) {
-  return instance->udp_->Close(fd);
+  return instance->posix_->Close(fd);
 }
-
-//
-// Wrap all networking functions to communicate via the Pepper API.
-//
 
 int socket(int domain, int type, int protocol) {
-  if (domain != AF_INET || type != SOCK_DGRAM || protocol != 0) {
-    errno = EPROTO;
-    return -1;
-  }
-  return instance->udp_->Socket();
+  return instance->posix_->Socket(domain, type, protocol);
 }
-
-/* bind() doesn't seem to be necessary after all, but keeping it just in case.
-int bind(int sockfd, const struct sockaddr* addr, socklen_t addrlen) {
-  if (addr->sa_family != AF_INET || addrlen != 4) {
-    // Only IPv4 currently supported.
-    // TODO: When Mosh supports IPv6, include support for it here.
-    NaClDebug("bind: Bad input. sa_family=%d, addrlen=%d",
-        addr->sa_family, addrlen);
-    errno = EPROTO;
-    return -1;
-  }
-  PP_NetAddress_IPv4 pp_addr;
-  MakeAddress(addr, addrlen, &addr);
-  return instance->udp_->Bind(sockfd, pp_addr);
-}
-*/
 
 int setsockopt(int sockfd, int level, int optname,
     const void* optval, socklen_t optlen) {
   NaClDebug("setsockopt stub called; fd=%d", sockfd);
   return 0;
 }
+
 int dup(int oldfd) {
-  return instance->udp_->Dup(oldfd);
+  return instance->posix_->Dup(oldfd);
 }
+
 int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     const struct timespec* timeout, const sigset_t* sigmask) {
-  /*
-  // Debugging output only:
-  for (int fd = 0; fd < nfds; ++fd) {
-    if (readfds != NULL && FD_ISSET(fd, readfds)) {
-      NaClDebug("pselect(): read %d", fd);
-    }
-    if (writefds != NULL && FD_ISSET(fd, writefds)) {
-      NaClDebug("pselect(): write %d", fd);
-    }
-  }
-  */
-  bool got_udp = false;
-  bool got_keyboard = false;
-  bool got_window_change = false;
-
-  vector<PepperPOSIX::Target *> targets =
-    instance->selector_->SelectAll(timeout);
-  for (vector<PepperPOSIX::Target *>::iterator i = targets.begin();
-      i != targets.end();
-      ++i) {
-    switch ((*i)->id()) {
-    case TARGET_UDP:
-      got_udp = true;
-      break;
-    case TARGET_KEYBOARD:
-      got_keyboard = true;
-      break;
-    case TARGET_WINDOW_CHANGE:
-      got_window_change = true;
-      break;
-    }
-  }
-
-  if (!got_udp) {
-    // TODO: Clean this up; not dealing with file descriptors at all, and just
-    // assuming any file descriptor != 0 is UDP.
-    FD_ZERO(readfds);
-  }
-
-  // Just assuming the caller cares about STDIN. Must explicitly set and clear,
-  // to ensure no damage from hack above.
-  if (got_keyboard) {
-    FD_SET(0, readfds);
-  } else {
-    FD_CLR(0, readfds);
-  }
-
-  FD_ZERO(exceptfds);
-
-  // Send a SIGWINCH if pending. This has to be done on the native Mosh thread,
-  // which is why we do it here in the pselect().
-  if (got_window_change) {
-    instance->sigwinch_handler_(SIGWINCH);
-    instance->window_change_target_->Update(false);
-  }
-
-  return 0;
+  return instance->posix_->PSelect(
+     nfds, readfds, writefds, exceptfds, timeout, sigmask);
 }
+
 ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {
-  return instance->udp_->Receive(sockfd, msg, flags);
+  return instance->posix_->RecvMsg(sockfd, msg, flags);
 }
+
 ssize_t sendto(int sockfd, const void* buf, size_t len, int flags,
     const struct sockaddr* dest_addr, socklen_t addrlen) {
-  vector<char> buffer((const char*)buf, (const char*)buf+len);
-  PP_NetAddress_IPv4 addr;
-  MakeAddress(dest_addr, addrlen, &addr);
-  return instance->udp_->Send(sockfd, buffer, flags, addr);
+  return instance->posix_->SendTo(sockfd, buf, len, flags, dest_addr, addrlen);
 }
 
 } // extern "C"

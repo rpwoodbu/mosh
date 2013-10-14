@@ -42,7 +42,7 @@ NativeUDP::~NativeUDP() {
   delete socket_;
 }
 
-int NativeUDP::Bind(int fd, const PP_NetAddress_IPv4& address) {
+int NativeUDP::Bind(const PP_NetAddress_IPv4& address) {
   pp::NetAddress net_address(instance_handle_, address);
   pp::Var string_address = net_address.DescribeAsString(true);
   if (string_address.is_undefined()) {
@@ -54,7 +54,7 @@ int NativeUDP::Bind(int fd, const PP_NetAddress_IPv4& address) {
   }
 
   int32_t result = socket_->Bind(net_address, pp::CompletionCallback());
-  NaClDebug("NativeUDP::Bind() fd=%d, result=%d", fd, result);
+  NaClDebug("NativeUDP::Bind() result=%d", result);
   if (result == PP_OK) {
     bound_ = true;
     pp::Module::Get()->core()->CallOnMainThread(
@@ -65,12 +65,12 @@ int NativeUDP::Bind(int fd, const PP_NetAddress_IPv4& address) {
 }
 
 ssize_t NativeUDP::Send(
-    int fd, const vector<char>& buf, int flags,
+    const vector<char>& buf, int flags,
     const PP_NetAddress_IPv4& address) {
   if (!bound_) {
     PP_NetAddress_IPv4 any_address;
     memset(&any_address, 0, sizeof(any_address));
-    int result = Bind(fd, any_address);
+    int result = Bind(any_address);
     if (result != 0) {
       NaClDebug("NativeUDP::Send(): Bind failed with %d", result);
       return 0;

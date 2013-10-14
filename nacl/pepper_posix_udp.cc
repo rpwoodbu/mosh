@@ -39,7 +39,7 @@ void DestroyMessage(struct ::msghdr *message) {
   delete message;
 }
 
-UDP::UDP(Target *target) : target_(target), next_fd_(42) {
+UDP::UDP(Target *target) : File(target) {
   pthread_mutex_init(&packets_lock_, NULL);
 }
 
@@ -58,20 +58,8 @@ UDP::~UDP() {
   pthread_mutex_destroy(&packets_lock_);
 }
 
-int UDP::Socket() {
-  // TODO: Implement.
-  NaClDebug("UDP::Socket(): fd=%d", next_fd_);
-  return next_fd_++;
-}
-
-int UDP::Dup(int fd) {
-  // TODO: Implement.
-  NaClDebug("UDP::Dup(): oldfd=%d, fd=%d", fd, next_fd_);
-  return next_fd_++;
-}
-
-ssize_t UDP::Receive(int fd, struct ::msghdr *message, int flags) {
-  //NaClDebug("UDP::Receive(%d, %llx, %x)", fd, message, flags);
+ssize_t UDP::Receive(struct ::msghdr *message, int flags) {
+  //NaClDebug("UDP::Receive(%llx, %x)", message, flags);
 
   pthread_mutex_lock(&packets_lock_);
   if (packets_.size() == 0) {
@@ -115,22 +103,22 @@ void UDP::AddPacket(struct ::msghdr *message) {
   target_->Update(true);
 }
 
-int UDP::Close(int fd) {
+int UDP::Close() {
   // TODO: Implement.
-  NaClDebug("UDP::Close(): fd=%d", fd);
+  NaClDebug("UDP::Close()");
   return 0;
 }
 
 ssize_t StubUDP::Send(
-    int fd, const vector<char>& buf, int flags, const PP_NetAddress_IPv4& addr) {
-  NaClDebug("StubUDP::Send(): fd=%d, size=%d", fd, buf.size());
+    const vector<char>& buf, int flags, const PP_NetAddress_IPv4& addr) {
+  NaClDebug("StubUDP::Send(): size=%d", buf.size());
   NaClDebug("StubUDP::Send(): Pretending we received something.");
   AddPacket(NULL);
   return buf.size();
 }
 
-int StubUDP::Bind(int fd, const PP_NetAddress_IPv4& address) {
-  NaClDebug("StubBind(): fd=%d", fd);
+int StubUDP::Bind(const PP_NetAddress_IPv4& address) {
+  NaClDebug("StubBind()");
   return 0;
 }
 

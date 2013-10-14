@@ -21,6 +21,7 @@
 #ifndef PEPPER_POSIX_UDP_HPP
 #define PEPPER_POSIX_UDP_HPP
 
+#include "pepper_posix.h"
 #include "pepper_posix_selector.h"
 
 #include <deque>
@@ -38,31 +39,25 @@ namespace PepperPOSIX {
 // Send(), and insert received packets using AddPacket(). It is expected that
 // AddPacket() will be called from a different thread than the one calling the
 // other methods; no other thread safety is provided.
-class UDP {
+class UDP : public File {
  public:
   // UDP constructs with a Target, from Selector::GetTarget().
   UDP(Target *target);
   virtual ~UDP();
 
-  // Socket replaces socket(), and returns a new fd.
-  int Socket();
-
-  // Dup replaces dup(), and returns a new fd.
-  int Dup(int fd);
-
   // Receive replaces recvmsg(); see its documentation for usage.
-  ssize_t Receive(int fd, struct ::msghdr *message, int flags);
+  ssize_t Receive(struct ::msghdr *message, int flags);
 
   // Bind replaces bind().
-  virtual int Bind(int fd, const PP_NetAddress_IPv4 &address) = 0;
+  virtual int Bind(const PP_NetAddress_IPv4 &address) = 0;
 
   // Send replaces sendto(). Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-    int fd, const vector<char> &buf, int flags,
+    const vector<char> &buf, int flags,
     const PP_NetAddress_IPv4 &address) = 0;
 
   // Close replaces close().
-  int Close(int fd);
+  int Close();
 
  protected:
   // AddPacket is used by the subclass to add a packet to the incoming queue.
@@ -71,8 +66,6 @@ class UDP {
   void AddPacket(struct ::msghdr *message);
  
  private:
-  Target* target_;
-  int next_fd_;
   std::deque<struct ::msghdr *> packets_; // Guard with packets_lock_.
   pthread_mutex_t packets_lock_;
 
@@ -89,11 +82,11 @@ class StubUDP : public UDP {
   virtual ~StubUDP() {}
 
   // Bind replaces bind().
-  virtual int Bind(int fd, const PP_NetAddress_IPv4 &address);
+  virtual int Bind(const PP_NetAddress_IPv4 &address);
 
   // Send replaces sendto. Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-    int fd, const vector<char> &buf, int flags,
+    const vector<char> &buf, int flags,
     const PP_NetAddress_IPv4 &address);
 
  private:

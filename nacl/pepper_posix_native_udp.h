@@ -36,11 +36,11 @@ class NativeUDP : public UDP {
   virtual ~NativeUDP();
 
   // Bind replaces bind().
-  virtual int Bind(int fd, const PP_NetAddress_IPv4& address);
+  virtual int Bind(const PP_NetAddress_IPv4& address);
 
   // Send replaces sendto. Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-      int fd, const vector<char>& buf, int flags,
+      const vector<char>& buf, int flags,
       const PP_NetAddress_IPv4& address);
 
  private:
