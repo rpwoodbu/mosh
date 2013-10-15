@@ -92,7 +92,7 @@ class POSIX {
   // constructor will generate targets for them.
   //
   // Set any of these to NULL if not used. Takes ownership of all.
-  POSIX(const pp::InstanceHandle& instance_handle,
+  POSIX(const pp::InstanceHandle &instance_handle,
       Reader *std_in, Writer *std_out, Writer *std_err, Signal *signal);
   ~POSIX();
 
@@ -118,7 +118,7 @@ class POSIX {
   // Map of file descriptors and the File objects they represent.
   ::std::map<int, File *> files_;
   Selector selector_;
-  const pp::InstanceHandle& instance_handle_;
+  const pp::InstanceHandle &instance_handle_;
 
   // Returns the next available file descriptor.
   int NextFileDescriptor_();

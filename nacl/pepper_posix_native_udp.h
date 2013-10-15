@@ -32,30 +32,30 @@ namespace PepperPOSIX {
 class NativeUDP : public UDP {
  public:
   // NativeUDP constructs with a Target, from Selector::GetTarget().
-  NativeUDP(const pp::InstanceHandle& instance_handle, Target* target);
+  NativeUDP(const pp::InstanceHandle &instance_handle, Target *target);
   virtual ~NativeUDP();
 
   // Bind replaces bind().
-  virtual int Bind(const PP_NetAddress_IPv4& address);
+  virtual int Bind(const PP_NetAddress_IPv4 &address);
 
   // Send replaces sendto. Usage is similar, but tweaked for C++.
   virtual ssize_t Send(
-      const vector<char>& buf, int flags,
-      const PP_NetAddress_IPv4& address);
+      const vector<char> &buf, int flags,
+      const PP_NetAddress_IPv4 &address);
 
  private:
   void StartReceive(int32_t unused);
   void Received(int32_t result, const pp::NetAddress &address);
 
-  pp::UDPSocket* socket_;
+  pp::UDPSocket *socket_;
   bool bound_;
-  const pp::InstanceHandle& instance_handle_;
+  const pp::InstanceHandle &instance_handle_;
   char receive_buffer_[RECEIVE_BUFFER_SIZE];
   pp::CompletionCallbackFactory<NativeUDP> factory_;
 
   // Disable copy and assignment.
   NativeUDP(const NativeUDP&);
-  NativeUDP& operator=(const NativeUDP&);
+  NativeUDP &operator=(const NativeUDP&);
 };
 
 } // namespace PepperPOSIX

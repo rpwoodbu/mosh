@@ -46,17 +46,17 @@ class Selector {
   // to it for the life of the Target. It is an error to delete Selector until
   // all Targets are deleted. id is an opaque identifier for the user to
   // distinguish one Target from another.
-  Target* NewTarget(int id);
+  Target *NewTarget(int id);
 
   // Select returns a subset of targets for which data is available, or 
   // waits until the timeout period has passed. It calls
   // pthread_cond_timedwait() if there are no targets with data available 
   // when the method is called.
   vector<Target*> Select(
-      const vector<Target*>& targets, const struct timespec* timeout);
+      const vector<Target*> &targets, const struct timespec *timeout);
 
   // SelectAll is similar to Select, but waits for all registered targets.
-  vector<Target*> SelectAll(const struct timespec* timeout) {
+  vector<Target*> SelectAll(const struct timespec *timeout) {
     return Select(targets_, timeout);
   }
 
@@ -69,10 +69,10 @@ class Selector {
 
   // Deregister is to be called only from the class Target when it is 
   // being destroyed and must deregister with Selector.
-  void Deregister(const Target* target);
+  void Deregister(const Target *target);
 
   // HasData returns a vector of Targets that have data ready to be read.
-  const vector<Target*> HasData(const vector<Target*>& targets);
+  const vector<Target*> HasData(const vector<Target*> &targets);
 
   vector<Target*> targets_;
   pthread_mutex_t notify_mutex_;
@@ -80,7 +80,7 @@ class Selector {
 
   // Disable copy and assignment.
   Selector(const Selector&);
-  Selector& operator=(const Selector&);
+  Selector &operator=(const Selector&);
 };
 
 // Target is used by an I/O "target" to communicate with a Selector instance
@@ -88,7 +88,7 @@ class Selector {
 // Update() whenever data availability changes.
 class Target {
  public:
-  Target(class Selector* s, int id) : selector_(s), id_(id), has_data_(false) {}
+  Target(class Selector *s, int id) : selector_(s), id_(id), has_data_(false) {}
   ~Target();
 
   // Update updates Target whether there is pending data available in the I/O
@@ -102,13 +102,13 @@ class Target {
   const int id() { return id_; }
 
  private:
-  class Selector* selector_;
+  class Selector *selector_;
   int id_;
   bool has_data_;
 
   // Disable copy and assignment.
   Target(const Target&);
-  Target& operator=(const Target&);
+  Target &operator=(const Target&);
 };
 
 } // namespace PepperPosix

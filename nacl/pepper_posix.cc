@@ -26,7 +26,7 @@
 
 namespace PepperPOSIX {
 
-POSIX::POSIX(const pp::InstanceHandle& instance_handle,
+POSIX::POSIX(const pp::InstanceHandle &instance_handle,
     Reader *std_in, Writer *std_out, Writer *std_err, Signal *signal)
   : instance_handle_(instance_handle) {
   files_[STDIN_FILENO] = std_in;
@@ -190,13 +190,13 @@ ssize_t POSIX::RecvMsg(int sockfd, struct msghdr *msg, int flags) {
 }
 
 // Make a PP_NetAddress_IPv4 from sockaddr.
-void MakeAddress(const struct sockaddr* addr, socklen_t addrlen,
-    PP_NetAddress_IPv4* pp_addr) {
+void MakeAddress(const struct sockaddr *addr, socklen_t addrlen,
+    PP_NetAddress_IPv4 *pp_addr) {
   // TODO: Make an IPv6 version, but since mosh doesn't support it now, this
   // will do.
   assert(addr->sa_family == AF_INET);
   assert(addrlen >= 4);
-  const struct sockaddr_in* in_addr = (struct sockaddr_in*)addr;
+  const struct sockaddr_in *in_addr = (struct sockaddr_in*)addr;
   uint32_t a = in_addr->sin_addr.s_addr;
   for (int i = 0; i < 4; ++i) {
     pp_addr->addr[i] = a & 0xff;

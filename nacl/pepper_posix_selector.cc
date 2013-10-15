@@ -35,13 +35,13 @@ Selector::~Selector() {
   pthread_mutex_destroy(&notify_mutex_);
 }
 
-Target* Selector::NewTarget(int id) {
-  Target* t = new Target(this, id);
+Target *Selector::NewTarget(int id) {
+  Target *t = new Target(this, id);
   targets_.push_back(t);
   return t;
 }
 
-void Selector::Deregister(const Target* target) {
+void Selector::Deregister(const Target *target) {
   vector<Target*>::iterator t = std::find(
       targets_.begin(), targets_.end(), target);
   // It is a logical error to deregister a target that is not registered.
@@ -54,7 +54,7 @@ void Selector::Notify() {
 }
 
 vector<Target*> Selector::Select(
-    const vector<Target*>& targets, const struct timespec* timeout) {
+    const vector<Target*> &targets, const struct timespec *timeout) {
   // Calculate absolute time for timeout. This should be done ASAP to reduce
   // the chances of this method not returning by the timeout specified. There
   // are no guarantees, of course.
@@ -79,7 +79,7 @@ vector<Target*> Selector::Select(
   return HasData(targets);
 }
 
-const vector<Target*> Selector::HasData(const vector<Target*>& targets) {
+const vector<Target*> Selector::HasData(const vector<Target*> &targets) {
   vector<Target*> result;
   for (vector<Target*>::const_iterator t = targets.begin();
       t != targets.end(); ++t) {

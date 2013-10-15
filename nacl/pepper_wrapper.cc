@@ -22,7 +22,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdio.h>
+#include <stdio.h> // TODO: Remove when debugs are eliminated.
 #include <stdlib.h>
 #include <string.h>
 #include <langinfo.h>
@@ -44,22 +44,11 @@ using ::std::string;
 using ::std::vector;
 
 // Forward declaration of mosh_main(), as it has no header file.
-int mosh_main(int argc, char* argv[]);
+int mosh_main(int argc, char *argv[]);
 
 // Make the singleton MoshClientInstance available to C functions in this
 // module.
-static class MoshClientInstance* instance = NULL;
-
-// TODO: Eliminate this debugging hack.
-void NaClDebug(const char* fmt, ...) {
-  char buf[256];
-  va_list argp;
-  va_start(argp, fmt);
-  vsnprintf(buf, sizeof(buf), fmt, argp);
-  buf[sizeof(buf)-1] = 0;
-  fprintf(stderr, "%s\n", buf);
-  //instance->PostMessage(pp::Var(buf));
-}
+static class MoshClientInstance *instance = NULL;
 
 // Implements most of the plumbing to get keystrokes to Mosh. A tiny amount of
 // plumbing is in the MoshClientInstance::HandleMessage().
@@ -72,7 +61,7 @@ class Keyboard : public PepperPOSIX::Reader {
     pthread_mutex_destroy(&keypresses_lock_);
   }
 
-  virtual ssize_t Read(void* buf, size_t count) {
+  virtual ssize_t Read(void *buf, size_t count) {
     // TODO: Could submit in batches, but rarely will get in batches.
     int result = 0;
     pthread_mutex_lock(&keypresses_lock_);
@@ -82,7 +71,7 @@ class Keyboard : public PepperPOSIX::Reader {
       target_->Update(keypresses_.size() > 0);
       result = 1;
     } else {
-      NaClDebug("read(): From STDIN, no data, treat as nonblocking.");
+      fprintf(stderr, "read(): From STDIN, no data, treat as nonblocking.");
     }
     pthread_mutex_unlock(&keypresses_lock_);
     return result;
@@ -157,7 +146,7 @@ class MoshClientInstance : public pp::Instance {
     delete posix_;
   }
 
-  virtual void HandleMessage(const pp::Var& var) {
+  virtual void HandleMessage(const pp::Var &var) {
     if (var.is_string()) {
       string s = var.AsString();
       keyboard_->HandleInput(s);
@@ -169,7 +158,7 @@ class MoshClientInstance : public pp::Instance {
     }
   }
 
-  virtual bool Init(uint32_t argc, const char* argn[], const char* argv[]) {
+  virtual bool Init(uint32_t argc, const char *argn[], const char *argv[]) {
     for (int i = 0; i < argc; ++i) {
       string name = argn[i];
       int len = strlen(argv[i]) + 1;
@@ -200,11 +189,11 @@ class MoshClientInstance : public pp::Instance {
     return true;
   }
 
-  static void* Launch(void* data) {
-    MoshClientInstance* thiz = reinterpret_cast<MoshClientInstance*>(data);
+  static void *Launch(void *data) {
+    MoshClientInstance *thiz = reinterpret_cast<MoshClientInstance *>(data);
 
     setenv("TERM", "xterm-256color", 1);
-    char* argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
+    char *argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
     mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
     thiz->PostMessage(pp::Var("Mosh has exited."));
     return 0;
@@ -219,8 +208,8 @@ class MoshClientInstance : public pp::Instance {
   static int num_instances_; // This needs to be a singleton.
   pthread_t thread_;
   // Non-const params for mosh_main().
-  char* addr_;
-  char* port_;
+  char *addr_;
+  char *port_;
   pp::InstanceHandle instance_handle_;
   Keyboard *keyboard_;
 };
@@ -233,7 +222,7 @@ class MoshClientModule : public pp::Module {
   MoshClientModule() : pp::Module() {}
   virtual ~MoshClientModule() {}
 
-  virtual pp::Instance* CreateInstance(PP_Instance instance) {
+  virtual pp::Instance *CreateInstance(PP_Instance instance) {
     return new MoshClientInstance(instance);
   }
 };
@@ -244,16 +233,16 @@ class MoshClientModule : public pp::Module {
 extern "C" {
 
 // These are used to avoid CORE dumps. Should be OK to stub them out.
-int getrlimit(int resource, struct rlimit* rlim) {
+int getrlimit(int resource, struct rlimit *rlim) {
   return 0;
 }
-int setrlimit(int resource, const struct rlimit* rlim) {
+int setrlimit(int resource, const struct rlimit *rlim) {
   return 0;
 }
 
-int sigaction(int signum, const struct sigaction* act,
-    struct sigaction* oldact) {
-  NaClDebug("sigaction(%d, ...)", signum);
+int sigaction(int signum, const struct sigaction *act,
+    struct sigaction *oldact) {
+  fprintf(stderr, "sigaction(%d, ...)", signum);
   assert(oldact == NULL);
   switch (signum) {
   case SIGWINCH:
@@ -264,7 +253,7 @@ int sigaction(int signum, const struct sigaction* act,
   return 0;
 }
 
-int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
+int sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
   return 0;
 }
 
@@ -280,10 +269,10 @@ pid_t getpid(void) {
 }
 
 // TODO: Determine if there's a better way than stubbing these out.
-char* setlocale(int category, const char* locale) {
+char *setlocale(int category, const char *locale) {
   return "NaCl";
 }
-char* nl_langinfo(nl_item item) {
+char *nl_langinfo(nl_item item) {
   switch (item) {
     case CODESET:
       return "UTF-8";
@@ -293,22 +282,22 @@ char* nl_langinfo(nl_item item) {
 }
 
 // We don't really care about terminal attributes.
-int tcgetattr(int fd, struct termios* termios_p) {
+int tcgetattr(int fd, struct termios *termios_p) {
   return 0;
 }
-int tcsetattr(int fd, int optional_sctions, const struct termios* termios_p) {
+int tcsetattr(int fd, int optional_sctions, const struct termios *termios_p) {
   return 0;
 }
 
 int ioctl(int d, long unsigned int request, ...) {
   if (d != STDIN_FILENO || request != TIOCGWINSZ) {
-    NaClDebug("ioctl(%d, %u, ...): Got unexpected call", d, request);
+    fprintf(stderr, "ioctl(%d, %u, ...): Got unexpected call", d, request);
     errno = EPROTO;
     return -1;
   }
   va_list argp;
   va_start(argp, request);
-  struct winsize* ws = va_arg(argp, struct winsize*);
+  struct winsize *ws = va_arg(argp, struct winsize*);
   ws->ws_row = instance->window_change_->height();
   ws->ws_col = instance->window_change_->width();
   va_end(argp);
@@ -326,16 +315,16 @@ ssize_t read(int fd, void *buf, size_t count) {
 }
 
 ssize_t write(int fd, const void *buf, size_t count) {
- switch (fd) {
- case 1: // STDOUT
-   string b((const char *)buf, count);
-   instance->PostMessage(pp::Var(b));
-   return count;
- }
+  switch (fd) {
+   case 1: // STDOUT
+    string b((const char *)buf, count);
+    instance->PostMessage(pp::Var(b));
+    return count;
+  }
 
- NaClDebug("write(%d, ...): Unexpected write.", fd);
- errno = EIO;
- return -1;
+  fprintf(stderr, "write(%d, ...): Unexpected write.", fd);
+  errno = EIO;
+  return -1;
 }
 
 int close(int fd) {
@@ -347,8 +336,8 @@ int socket(int domain, int type, int protocol) {
 }
 
 int setsockopt(int sockfd, int level, int optname,
-    const void* optval, socklen_t optlen) {
-  NaClDebug("setsockopt stub called; fd=%d", sockfd);
+    const void *optval, socklen_t optlen) {
+  fprintf(stderr, "setsockopt stub called; fd=%d", sockfd);
   return 0;
 }
 
@@ -356,25 +345,26 @@ int dup(int oldfd) {
   return instance->posix_->Dup(oldfd);
 }
 
-int pselect(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
-    const struct timespec* timeout, const sigset_t* sigmask) {
+int pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+    const struct timespec *timeout, const sigset_t *sigmask) {
   return instance->posix_->PSelect(
      nfds, readfds, writefds, exceptfds, timeout, sigmask);
 }
 
-ssize_t recvmsg(int sockfd, struct msghdr* msg, int flags) {
+ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags) {
   return instance->posix_->RecvMsg(sockfd, msg, flags);
 }
 
-ssize_t sendto(int sockfd, const void* buf, size_t len, int flags,
-    const struct sockaddr* dest_addr, socklen_t addrlen) {
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+    const struct sockaddr *dest_addr, socklen_t addrlen) {
   return instance->posix_->SendTo(sockfd, buf, len, flags, dest_addr, addrlen);
 }
 
 } // extern "C"
 
 namespace pp {
-Module* CreateModule() {
+Module *CreateModule() {
   return new MoshClientModule();
 }
+
 } // namespace pp

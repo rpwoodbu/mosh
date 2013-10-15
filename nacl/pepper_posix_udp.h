@@ -71,14 +71,14 @@ class UDP : public File {
 
   // Disable copy and assignment.
   UDP(const UDP &);
-  UDP& operator=(const UDP &);
+  UDP &operator=(const UDP &);
 };
 
 // StubUDP is an instantiatable stubbed subclass of UDP for debugging.
 class StubUDP : public UDP {
  public:
   // StubUDP constructs with a Target, from Selector::GetTarget().
-  StubUDP(Target* target) : UDP(target) {}
+  StubUDP(Target *target) : UDP(target) {}
   virtual ~StubUDP() {}
 
   // Bind replaces bind().
@@ -92,7 +92,7 @@ class StubUDP : public UDP {
  private:
   // Disable copy and assignment.
   StubUDP(const StubUDP &);
-  StubUDP& operator=(const StubUDP &);
+  StubUDP &operator=(const StubUDP &);
 };
 
 } // namespace PepperPOSIX

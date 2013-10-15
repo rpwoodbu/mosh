@@ -20,11 +20,9 @@
 
 #include "pepper_posix_udp.h"
 #include <assert.h>
+#include <stdio.h> // TODO: Remove when debugs are eliminated.
 #include <stdlib.h>
 #include <string.h>
-
-// TODO: Eliminate this debugging hack.
-void NaClDebug(const char *fmt, ...);
 
 namespace PepperPOSIX {
 
@@ -59,7 +57,7 @@ UDP::~UDP() {
 }
 
 ssize_t UDP::Receive(struct ::msghdr *message, int flags) {
-  //NaClDebug("UDP::Receive(%llx, %x)", message, flags);
+  //fprintf(stderr, "UDP::Receive(%llx, %x)", message, flags);
 
   pthread_mutex_lock(&packets_lock_);
   if (packets_.size() == 0) {
@@ -74,7 +72,7 @@ ssize_t UDP::Receive(struct ::msghdr *message, int flags) {
   if (message->msg_namelen >= latest->msg_namelen) {
     memcpy(message->msg_name, latest->msg_name, latest->msg_namelen);
   } else {
-    NaClDebug("UDP::Receive(): msg_namelen too short.");
+    fprintf(stderr, "UDP::Receive(): msg_namelen too short.");
   }
 
   assert(latest->msg_iovlen == 1); // For simplicity, as this is internal.
@@ -95,8 +93,8 @@ ssize_t UDP::Receive(struct ::msghdr *message, int flags) {
 }
 
 void UDP::AddPacket(struct ::msghdr *message) {
-  //NaClDebug("UDP::AddPacket(%llx)", message);
-  //NaClDebug("UDP::AddPacket(): sa_family: %d", ((::sockaddr *)message->msg_name)->sa_family);
+  //fprintf(stderr, "UDP::AddPacket(%llx)", message);
+  //fprintf(stderr, "UDP::AddPacket(): sa_family: %d", ((::sockaddr *)message->msg_name)->sa_family);
   pthread_mutex_lock(&packets_lock_);
   packets_.push_back(message);
   pthread_mutex_unlock(&packets_lock_);
@@ -105,20 +103,20 @@ void UDP::AddPacket(struct ::msghdr *message) {
 
 int UDP::Close() {
   // TODO: Implement.
-  NaClDebug("UDP::Close()");
+  fprintf(stderr, "UDP::Close()");
   return 0;
 }
 
 ssize_t StubUDP::Send(
-    const vector<char>& buf, int flags, const PP_NetAddress_IPv4& addr) {
-  NaClDebug("StubUDP::Send(): size=%d", buf.size());
-  NaClDebug("StubUDP::Send(): Pretending we received something.");
+    const vector<char> &buf, int flags, const PP_NetAddress_IPv4 &addr) {
+  fprintf(stderr, "StubUDP::Send(): size=%d", buf.size());
+  fprintf(stderr, "StubUDP::Send(): Pretending we received something.");
   AddPacket(NULL);
   return buf.size();
 }
 
-int StubUDP::Bind(const PP_NetAddress_IPv4& address) {
-  NaClDebug("StubBind()");
+int StubUDP::Bind(const PP_NetAddress_IPv4 &address) {
+  fprintf(stderr, "StubBind()");
   return 0;
 }
 
