@@ -57,7 +57,7 @@ class UDP : public File {
     const PP_NetAddress_IPv4 &address) = 0;
 
   // Close replaces close().
-  int Close();
+  virtual int Close();
 
  protected:
   // AddPacket is used by the subclass to add a packet to the incoming queue.

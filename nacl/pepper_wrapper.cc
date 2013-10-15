@@ -98,9 +98,6 @@ class Keyboard : public PepperPOSIX::Reader {
     target_->Update(true);
   }
 
-  // Used as STDIN; should not be closed.
-  virtual int Close() { return 0; };
-
  private:
   // Queue of keyboard keypresses.
   std::deque<char> keypresses_; // Guard with keypresses_lock_.
@@ -129,9 +126,6 @@ class WindowChange : public PepperPOSIX::Signal {
     sigwinch_handler_(SIGWINCH);
     target_->Update(false);
   }
-
-  // Doesn't really make sense to close this, but required to implemenet.
-  virtual int Close() { return 0; };
 
   int height() { return height_; }
   int width() { return width_; }

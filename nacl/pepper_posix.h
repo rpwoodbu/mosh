@@ -39,7 +39,7 @@ class File {
   File(Target *target) : target_(target) {}
   virtual ~File() {};
 
-  virtual int Close() = 0;
+  virtual int Close() { return 0; }
   int fd() { return target_->id(); }
 
   Target *target_;
@@ -78,7 +78,6 @@ class Signal : public File {
   // outstanding. Call target_->Update(false) from this method when there are
   // no more outstanding signals.
   virtual void Handle() = 0;
-  virtual int Close() { return 0; };
 };
 
 
