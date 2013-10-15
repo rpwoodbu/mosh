@@ -71,7 +71,7 @@ class Keyboard : public PepperPOSIX::Reader {
       target_->Update(keypresses_.size() > 0);
       result = 1;
     } else {
-      fprintf(stderr, "read(): From STDIN, no data, treat as nonblocking.");
+      fprintf(stderr, "read(): From STDIN, no data, treat as nonblocking.\n");
     }
     pthread_mutex_unlock(&keypresses_lock_);
     return result;
@@ -242,7 +242,7 @@ int setrlimit(int resource, const struct rlimit *rlim) {
 
 int sigaction(int signum, const struct sigaction *act,
     struct sigaction *oldact) {
-  fprintf(stderr, "sigaction(%d, ...)", signum);
+  fprintf(stderr, "sigaction(%d, ...)\n", signum);
   assert(oldact == NULL);
   switch (signum) {
   case SIGWINCH:
@@ -285,13 +285,14 @@ char *nl_langinfo(nl_item item) {
 int tcgetattr(int fd, struct termios *termios_p) {
   return 0;
 }
+
 int tcsetattr(int fd, int optional_sctions, const struct termios *termios_p) {
   return 0;
 }
 
 int ioctl(int d, long unsigned int request, ...) {
   if (d != STDIN_FILENO || request != TIOCGWINSZ) {
-    fprintf(stderr, "ioctl(%d, %u, ...): Got unexpected call", d, request);
+    fprintf(stderr, "ioctl(%d, %u, ...): Got unexpected call\n", d, request);
     errno = EPROTO;
     return -1;
   }
@@ -322,7 +323,7 @@ ssize_t write(int fd, const void *buf, size_t count) {
     return count;
   }
 
-  fprintf(stderr, "write(%d, ...): Unexpected write.", fd);
+  fprintf(stderr, "write(%d, ...): Unexpected write.\n", fd);
   errno = EIO;
   return -1;
 }
@@ -337,7 +338,7 @@ int socket(int domain, int type, int protocol) {
 
 int setsockopt(int sockfd, int level, int optname,
     const void *optval, socklen_t optlen) {
-  fprintf(stderr, "setsockopt stub called; fd=%d", sockfd);
+  fprintf(stderr, "setsockopt stub called; fd=%d\n", sockfd);
   return 0;
 }
 
