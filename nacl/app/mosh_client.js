@@ -26,7 +26,7 @@ function execMosh() {
   args.port = document.querySelector('#port').value;
   args.key = document.querySelector('#key').value;
 
-  var form = document.querySelector('#args');
+  var form = document.querySelector('#setup');
   form.parentNode.removeChild(form);
 
   var terminal = new hterm.Terminal("mosh");
@@ -36,6 +36,8 @@ function execMosh() {
     terminal.setCursorVisible(true);
     terminal.runCommandClass(mosh.CommandInstance, args);
   };
+
+  document.title += " - " + args.addr;
 
   // Useful for console debugging.
   window.term_ = terminal;

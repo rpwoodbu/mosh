@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <head>
-  <title>mosh_client</title>
+  <title>Mosh Client</title>
   <script src="mosh_client.js" type="text/javascript"></script>
   <script src="hterm/hterm_deps.js" type="text/javascript"></script>
   <script src="hterm/hterm.js" type="text/javascript"></script>
@@ -38,18 +38,53 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
   </style>
 </head>
 <body>
-  <form id="args">
-    IP address:
-    <input id="addr" type="text">
-    <br>
-    Port number:
-    <input id="port" type="text">
-    <br>
-    MOSH_KEY:
-    <input id="key" type="text">
-    <br>
-    <input id="connect" type="submit" value="Connect">
-  </form>
+  <div id="setup">
+    <form id="args" target="_blank">
+      <table>
+        <tr>
+          <td>IP address:</td>
+          <td><input id="addr" type="text"></td>
+        </tr>
+        <tr>
+          <td>Port number:</td>
+          <td><input id="port" type="text"></td>
+        </tr>
+          <td>MOSH_KEY:</td>
+          <td><input id="key" type="text"></td>
+        </tr>
+      </table>
+      <input id="connect" type="submit" value="Connect">
+    </form>
+
+    <h3>Instructions</h3>
+    <p>
+    First manually ssh to the remote machine and run 'mosh-server'.
+    It will print the key and the port number; enter those into this form,
+    as well as the IP address (not the hostname) of the remote machine,
+    and click 'Connect'. 'mosh-server' gives you about a minute to do this
+    before giving up and exiting. You can close your ssh session once
+    'mosh-server' is running.
+
+    <h3>Known issues</h3>
+    <p>
+    <ul>
+      <li>Crypto randomness, well, isn't.
+      <li>Bad interaction with tmux and windowed areas.
+      <li>Must specify IP address, not hostname.
+      <li>Most fatal errors only log to stderr, not to the screen.
+      <li>Too easy to close the window by mistake.
+    </ul>
+
+    <h3>Changelog</h3>
+    <ul>
+      <li>0.0.0.5 - Clean up initial screen and add this info.
+      <li>0.0.0.4 - Big code refactor.
+      <li>0.0.0.3 - Fix bug in packet handling code which caused perceived
+        sluggishness.
+      <li>0.0.0.2 - Add application icon.
+      <li>0.0.0.1 - Initial working version.
+
+  </div>
   <div id="terminal"></div>
 </body>
 </html>
