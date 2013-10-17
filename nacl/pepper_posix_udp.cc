@@ -20,6 +20,7 @@
 
 #include "pepper_posix_udp.h"
 #include <assert.h>
+#include <errno.h>
 #include <stdio.h> // TODO: Remove when debugs are eliminated.
 #include <stdlib.h>
 #include <string.h>
@@ -62,7 +63,8 @@ ssize_t UDP::Receive(struct ::msghdr *message, int flags) {
   pthread_mutex_lock(&packets_lock_);
   if (packets_.size() == 0) {
     pthread_mutex_unlock(&packets_lock_);
-    return 0;
+    errno = EWOULDBLOCK;
+    return -1;
   }
   struct ::msghdr *latest = packets_.front();
   packets_.pop_front();

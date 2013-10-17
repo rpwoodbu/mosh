@@ -96,8 +96,21 @@ void NativeUDP::StartReceive(int32_t unused) {
 
 // Received is the callback result of StartReceive().
 void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
-  //fprintf(stderr, "NativeUDP::Received(): Got %d from %s\n",
-  //    result, address.DescribeAsString(true).AsString().c_str());
+  //fprintf(stderr, "NativeUDP::Received(%d, ...)\n", result);
+  //pp::Var var_address = address.DescribeAsString(true);
+  //if (var_address.is_string()) {
+  //  fprintf(stderr, "NativeUDP::Received(_, %s)\n", 
+  //      var_address.AsString().c_str());
+  //} else {
+  //  fprintf(stderr,
+  //      "NativeUDP::Received(): Address did not describe as string!");
+  //}
+
+  if (result < 0) {
+    fprintf(stderr,
+        "NativeUDP::Received(%d, ...): Negative result; bailing.\n", result);
+    return;
+  }
 
   PP_NetAddress_IPv4 ipv4_addr;
   if (!address.DescribeAsIPv4Address(&ipv4_addr)) {
