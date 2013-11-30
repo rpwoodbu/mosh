@@ -79,12 +79,15 @@ $(PROJECT).zip : $(PROJECT).nmf
 	pushd $(OUTDIR) && zip -r ../$(PROJECT).zip . && popd
 
 # Define 32 bit compile and link rules for C++ sources
-x86_32_OBJS:=$(patsubst %.cc,%_32.o,$(CXX_SOURCES))
-$(x86_32_OBJS) : %_32.o : %.cc $(THIS_MAKE) $(CXX_HEADERS)
+i686_OBJS:=$(patsubst %.cc,%_32.o,$(CXX_SOURCES))
+$(i686_OBJS) : %_32.o : %.cc $(THIS_MAKE) $(CXX_HEADERS)
 	$(CXX) -o $@ -c $< -m32 $(CXXFLAGS)
 
-$(PROJECT)_x86_32.nexe : $(x86_32_OBJS)
-	$(CXX) -o $@ $^ -m32 $(OBJECTS) $(LIBS) $(CXXFLAGS) $(LDFLAGS)
+i686_MOSHOBJS:=$(patsubst ARCH%,build/i686%,$(OBJECTS))
+i686_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/i686%,$(LIBDIRS))
+$(PROJECT)_i686.nexe : $(i686_OBJS)
+	$(CXX) -o $@ $^ -m32 $(i686_MOSHOBJS) $(LIBS) $(CXXFLAGS) \
+	$(LDFLAGS) $(i686_MOSHLIBDIRS)
 
 # Define 64 bit compile and link rules for C++ sources
 x86_64_OBJS:=$(patsubst %.cc,%_64.o,$(CXX_SOURCES))
@@ -95,11 +98,11 @@ x86_64_MOSHOBJS:=$(patsubst ARCH%,build/x86_64%,$(OBJECTS))
 x86_64_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/x86_64%,$(LIBDIRS))
 $(PROJECT)_x86_64.nexe : $(x86_64_OBJS)
 	$(CXX) -o $@ $^ -m64 $(x86_64_MOSHOBJS) $(LIBS) $(CXXFLAGS) \
-		$(LDFLAGS) $(x86_64_MOSHLIBDIRS)
+	$(LDFLAGS) $(x86_64_MOSHLIBDIRS)
 
 # Create NaCl Manifest
-$(PROJECT).nmf : $(PROJECT)_x86_64.nexe
-	$(NACL_SDK_ROOT)/tools/create_nmf.py $< -o $@ -s $(OUTDIR)
+$(PROJECT).nmf : $(PROJECT)_x86_64.nexe $(PROJECT)_i686.nexe
+	$(NACL_SDK_ROOT)/tools/create_nmf.py $^ -o $@ -s $(OUTDIR)
 
 clean:
 	rm -rf *.o $(PROJECT).zip $(PROJECT)*.nexe $(PROJECT).pexe \

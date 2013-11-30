@@ -36,65 +36,75 @@ fi
 # TODO: Consider getting and building protoc to match what's in NaCl Ports.
 
 export NACL_GLIBC="1"
-# TODO: Make other architectures.
-export NACL_ARCH="x86_64" 
-
-echo "Building packages in NaCl Ports..."
-pushd ${NACL_PORTS}/src > /dev/null
-make zlib openssl ncurses protobuf
-popd > /dev/null
-
-echo "Updating submodules..."
-pushd .. > /dev/null
-git submodule init
-git submodule update
-popd > /dev/null
-pushd chromium_assets/chromeapps/hterm > /dev/null
-if [[ ! -d dist ]]; then
-  bin/mkdist.sh
-fi
-popd > /dev/null
-
-echo "Loading naclports environment..."
-# For some reason I have to build NACLPORTS_LIBDIR myself, and I need vars to
-# do this that nacl_env.sh generates, so I end up calling that guy twice.
-. ${NACL_PORTS}/src/build_tools/nacl_env.sh
-export NACLPORTS_LIBDIR=${NACL_TOOLCHAIN_ROOT}/${NACL_CROSS_PREFIX}/usr/lib
-eval $(${NACL_PORTS}/src/build_tools/nacl_env.sh --print)
-
-export CC=${NACLCC}
-export CXX=${NACLCXX}
-export AR=${NACLAR}
-export RANLIB=${NACLRANLIB}
-export PKG_CONFIG_LIBDIR=${NACLPORTS_LIBDIR}
-export PKG_CONFIG_PATH=${PKG_CONFIG_LIBDIR}/pkgconfig
-export PATH=${NACL_BIN_PATH}:${PATH};
-# TODO: See if there's a way to get the linker to prefer main() in libppapi
-# instead of using this hack.
-export CXXFLAGS="-D__NACL__"
-
-if [[ ${FAST} != "fast" ]]; then
-  pushd .. > /dev/null
-  if [[ ! -f configure ]]; then
-    echo "Running autogen."
-    ./autogen.sh
-  fi
-  popd > /dev/null # ..
-
-  build_dir="build/${NACL_ARCH}"
-  mkdir -p "${build_dir}"
-  pushd "${build_dir}" > /dev/null
-  echo "Configuring..."
-  ../../../configure --host=nacl --enable-client=yes --enable-server=no
-  echo "Building Mosh with NaCl compiler..."
-  make clean
-  make || echo "Ignore error."
-  popd > /dev/null # ${build_dir}
-fi
-
-echo "Building .nexe..."
 
 make clean
+for arch in x86_64 i686; do ( # Do all this in a separate subshell.
+  export NACL_ARCH="${arch}"
+  echo "Building packages in NaCl Ports..."
+  pushd ${NACL_PORTS}/src > /dev/null
+  make zlib openssl ncurses protobuf
+  popd > /dev/null
+
+  echo "Updating submodules..."
+  pushd .. > /dev/null
+  git submodule init
+  git submodule update
+  popd > /dev/null
+  pushd chromium_assets/chromeapps/hterm > /dev/null
+  if [[ ! -d dist ]]; then
+    bin/mkdist.sh
+  fi
+  popd > /dev/null
+
+  echo "Loading naclports environment..."
+  # For some reason I have to build NACLPORTS_LIBDIR myself, and I need vars to
+  # do this that nacl_env.sh generates, so I end up calling that guy twice.
+  . ${NACL_PORTS}/src/build_tools/nacl_env.sh
+  export NACLPORTS_LIBDIR=${NACL_TOOLCHAIN_ROOT}/${NACL_CROSS_PREFIX}/usr/lib
+  eval $(${NACL_PORTS}/src/build_tools/nacl_env.sh --print)
+
+  export CC=${NACLCC}
+  export CXX=${NACLCXX}
+  export AR=${NACLAR}
+  export RANLIB=${NACLRANLIB}
+  export PKG_CONFIG_LIBDIR=${NACLPORTS_LIBDIR}
+  export PKG_CONFIG_PATH=${PKG_CONFIG_LIBDIR}/pkgconfig
+  export PATH=${NACL_BIN_PATH}:${PATH};
+  # TODO: See if there's a way to get the linker to prefer main() in libppapi
+  # instead of using this hack.
+  export CXXFLAGS="-D__NACL__"
+
+  if [[ ${FAST} != "fast" ]]; then
+    pushd .. > /dev/null
+    if [[ ! -f configure ]]; then
+      echo "Running autogen."
+      ./autogen.sh
+    fi
+    popd > /dev/null # ..
+
+    build_dir="build/${NACL_ARCH}"
+    mkdir -p "${build_dir}"
+    pushd "${build_dir}" > /dev/null
+    echo "Configuring..."
+    configure_options="--host=nacl --enable-client=yes --enable-server=no"
+    if [[ "${arch}" == "i686" ]]; then
+      # The i686 build doesn't seem to have stack protection, even though
+      # "configure" finds it, so disabling hardening. :(
+      configure_options="${configure_options} --disable-hardening"
+    fi
+    ../../../configure ${configure_options}
+    echo "Building Mosh with NaCl compiler..."
+    make clean
+    make || echo "Ignore error."
+    popd > /dev/null # ${build_dir}
+  fi
+
+  target="app/mosh_client_${NACL_ARCH}.nexe"
+  echo "Building ${target}..."
+  make "${target}"
+
+) done
+
 # Copy hterm dist files into app directory.
 mkdir -p app/hterm
 cp -f chromium_assets/chromeapps/hterm/dist/js/* app/hterm
