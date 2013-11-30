@@ -29,18 +29,18 @@ CXX_HEADERS:=\
 	pepper_posix_udp.h
 
 OBJECTS:=\
-	../src/frontend/mosh-client.o \
-	../src/frontend/stmclient.o \
-	../src/frontend/terminaloverlay.o
+	ARCH/src/frontend/mosh-client.o \
+	ARCH/src/frontend/stmclient.o \
+	ARCH/src/frontend/terminaloverlay.o
 
 LIBDIRS:=\
-	-L../src/frontend \
-	-L../src/crypto \
-	-L../src/network \
-	-L../src/statesync \
-	-L../src/terminal \
-	-L../src/util \
-	-L../src/protobufs \
+	ARCH/src/frontend \
+	ARCH/src/crypto \
+	ARCH/src/network \
+	ARCH/src/statesync \
+	ARCH/src/terminal \
+	ARCH/src/util \
+	ARCH/src/protobufs \
 
 LIBS:=\
 	-lmoshcrypto \
@@ -56,7 +56,7 @@ CXX:=$(TC_PATH)/bin/i686-nacl-g++
 
 # Project Build flags
 override LDFLAGS+=-lppapi_cpp -lppapi -lz -lssl -lncurses -lprotobuf -lcrypto \
-	-lrt $(LIBDIRS)
+	-lrt
 # Add this linker flag to build statically:
 	#-static -T $(TC_PATH)/x86_64-nacl/lib/ldscripts/elf64_nacl.x.static
 #override WARNINGS+=-Wno-long-long -Wall -Wswitch-enum -Werror
@@ -91,8 +91,11 @@ x86_64_OBJS:=$(patsubst %.cc,%_64.o,$(CXX_SOURCES))
 $(x86_64_OBJS) : %_64.o : %.cc $(THIS_MAKE)
 	$(CXX) -o $@ -c $< -m64 $(CXXFLAGS)
 
+x86_64_MOSHOBJS:=$(patsubst ARCH%,build/x86_64%,$(OBJECTS))
+x86_64_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/x86_64%,$(LIBDIRS))
 $(PROJECT)_x86_64.nexe : $(x86_64_OBJS)
-	$(CXX) -o $@ $^ -m64 $(OBJECTS) $(LIBS) $(CXXFLAGS) $(LDFLAGS)
+	$(CXX) -o $@ $^ -m64 $(x86_64_MOSHOBJS) $(LIBS) $(CXXFLAGS) \
+		$(LDFLAGS) $(x86_64_MOSHLIBDIRS)
 
 # Create NaCl Manifest
 $(PROJECT).nmf : $(PROJECT)_x86_64.nexe
@@ -100,4 +103,4 @@ $(PROJECT).nmf : $(PROJECT)_x86_64.nexe
 
 clean:
 	rm -rf *.o $(PROJECT).zip $(PROJECT)*.nexe $(PROJECT).pexe \
-	$(PROJECT).nmf $(OUTDIR)/lib*
+	$(PROJECT).nmf $(OUTDIR)/lib* $(OUTDIR)/hterm

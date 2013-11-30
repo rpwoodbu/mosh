@@ -54,9 +54,6 @@ if [[ ! -d dist ]]; then
   bin/mkdist.sh
 fi
 popd > /dev/null
-# Copy hterm dist files into app directory.
-mkdir -p app/hterm
-cp -f chromium_assets/chromeapps/hterm/dist/js/* app/hterm
 
 echo "Loading naclports environment..."
 # For some reason I have to build NACLPORTS_LIBDIR myself, and I need vars to
@@ -82,16 +79,26 @@ if [[ ${FAST} != "fast" ]]; then
     echo "Running autogen."
     ./autogen.sh
   fi
+  popd > /dev/null # ..
+
+  build_dir="build/${NACL_ARCH}"
+  mkdir -p "${build_dir}"
+  pushd "${build_dir}" > /dev/null
   echo "Configuring..."
-  ./configure --host=nacl --enable-client=yes --enable-server=no
+  ../../../configure --host=nacl --enable-client=yes --enable-server=no
   echo "Building Mosh with NaCl compiler..."
   make clean
   make || echo "Ignore error."
-  popd > /dev/null # ..
+  popd > /dev/null # ${build_dir}
 fi
 
 echo "Building .nexe..."
+
 make clean
+# Copy hterm dist files into app directory.
+mkdir -p app/hterm
+cp -f chromium_assets/chromeapps/hterm/dist/js/* app/hterm
+
 if [[ ${FAST} == "fast" ]]; then
   make nmf
 else
