@@ -18,6 +18,8 @@
 window.onload = function() {
   var connectButton = document.querySelector('#connect');
   connectButton.onclick = onConnectClick;
+  var form = document.querySelector('#args');
+  args.onsubmit = function() { return false; };
 };
 
 function execMosh() {
