@@ -40,6 +40,10 @@ if [[ $# -gt 0 ]]; then
   shift 1
 fi
 
+if [[ ! -d "build" ]]; then
+  mkdir -p build
+fi
+
 # Get NaCl SDK.
 if [[ "$(uname)" != "Linux" && "${NACL_SDK_ROOT}" == "" ]]; then
   echo "Please set NACL_SDK_ROOT. Auto-setup of this is only on Linux."
