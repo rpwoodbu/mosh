@@ -4,12 +4,6 @@
 # browser. If you have already built once and are doing active development on
 # the Native Client port, invoke with the parameter "fast".
 
-FAST=""
-if [[ $# -gt 0 ]]; then
-  FAST="$1"
-  shift 1
-fi
-
 # Copyright 2013 Richard Woodbury
 #
 # This program is free software: you can redistribute it and/or modify
@@ -25,15 +19,89 @@ fi
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# TODO: Get NaCl SDK.
+NACL_SDK_ZIP="nacl_sdk.zip"
+NACL_SDK_URL="http://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/${NACL_SDK_ZIP}"
+NACL_SDK_DIR="nacl_sdk"
+NACL_SDK_VERSION="pepper_31"
 
-# TODO: Get NaCl Ports (and depot_tools).
-if [[ ${NACL_PORTS} == "" ]]; then
-  echo "Please set NACL_PORTS."
-  exit 1
+DEPOT_TOOLS_URL="https://chromium.googlesource.com/chromium/tools/depot_tools.git"
+DEPOT_TOOLS_DIR="depot_tools"
+
+NACL_PORTS_URL="https://chromium.googlesource.com/external/naclports.git"
+NACL_PORTS_DIR="naclports"
+
+PROTOBUF_DIR="protobuf-2.5.0"
+PROTOBUF_TAR="${PROTOBUF_DIR}.tar.bz2"
+PROTOBUF_URL="https://protobuf.googlecode.com/files/${PROTOBUF_TAR}"
+
+FAST=""
+if [[ $# -gt 0 ]]; then
+  FAST="$1"
+  shift 1
 fi
 
-# TODO: Consider getting and building protoc to match what's in NaCl Ports.
+# Get NaCl SDK.
+if [[ "$(uname)" != "Linux" && "${NACL_SDK_ROOT}" == "" ]]; then
+  echo "Please set NACL_SDK_ROOT. Auto-setup of this is only on Linux."
+  exit 1
+fi
+if [[ "${NACL_SDK_ROOT}" == "" ]]; then
+  if [[ ! -d "build/${NACL_SDK_DIR}" ]]; then
+    pushd build > /dev/null
+    wget "${NACL_SDK_URL}"
+    unzip "${NACL_SDK_ZIP}"
+    popd > /dev/null
+  fi
+  if [[ "${FAST}" != "fast" ]]; then
+    pushd "build/${NACL_SDK_DIR}"
+    ./naclsdk update pepper_31
+    popd > /dev/null
+  fi
+  export NACL_SDK_ROOT="$(pwd)/build/${NACL_SDK_DIR}/${NACL_SDK_VERSION}"
+fi
+
+# Get depot_tools. If not on Linux, skip this and expect ${NACL_PORTS} to be
+# set.
+if [[ "$(uname)" == "Linux" ]]; then
+  if [[ ! -d "build/${DEPOT_TOOLS_DIR}" ]]; then
+    pushd build > /dev/null
+    git clone "${DEPOT_TOOLS_URL}"
+    popd > /dev/null
+  fi
+  export PATH="${PATH}:$(pwd)/build/${DEPOT_TOOLS_DIR}"
+fi
+
+# Get NaCl Ports.
+if [[ "$(uname)" != "Linux" && "${NACL_PORTS}" == "" ]]; then
+  echo "Please set NACL_PORTS. Auto-setup of this is only on Linux."
+  exit 1
+fi
+if [[ "${NACL_PORTS}" == "" ]]; then
+  if [[ ! -d "build/${NACL_PORTS_DIR}" ]]; then
+    mkdir -p "build/${NACL_PORTS_DIR}"
+    pushd "build/${NACL_PORTS_DIR}" > /dev/null
+    gclient config --name=src "${NACL_PORTS_URL}"
+    popd > /dev/null
+  fi
+  if [[ "${FAST}" != "fast" ]]; then
+    pushd "build/${NACL_PORTS_DIR}" > /dev/null
+    gclient sync
+    popd > /dev/null
+  fi
+  export NACL_PORTS="$(pwd)/build/${NACL_PORTS_DIR}"
+fi
+
+# Get and build protoc to match what's in NaCl Ports.
+if [[ ! -d "build/${PROTOBUF_DIR}" ]]; then
+  mkdir -p "build/${PROTOBUF_DIR}"
+  pushd "build" > /dev/null
+  wget "${PROTOBUF_URL}"
+  tar -xjf "${PROTOBUF_TAR}"
+  cd "${PROTOBUF_DIR}"
+  ./configure && make
+  popd > /dev/null
+fi
+export PATH="$(pwd)/build/${PROTOBUF_DIR}/src:${PATH}"
 
 export NACL_GLIBC="1"
 
@@ -41,7 +109,7 @@ make clean
 for arch in x86_64 i686; do ( # Do all this in a separate subshell.
   export NACL_ARCH="${arch}"
   echo "Building packages in NaCl Ports..."
-  pushd ${NACL_PORTS}/src > /dev/null
+  pushd "${NACL_PORTS}/src" > /dev/null
   make zlib openssl ncurses protobuf
   popd > /dev/null
 
