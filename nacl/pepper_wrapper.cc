@@ -27,7 +27,9 @@
 #include <string.h>
 #include <langinfo.h>
 #include <netdb.h>
+#include <pthread.h>
 #include <sys/ioctl.h>
+#include <sys/resource.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -185,17 +187,23 @@ class MoshClientInstance : public pp::Instance {
         instance_handle_, keyboard_, NULL, NULL, window_change_);
 
     // Launch mosh-client.
-    pthread_create(&thread_, NULL, &Launch, this);
+    int thread_err = pthread_create(&thread_, NULL, Mosh, this);
+    if (thread_err != 0) {
+      PostMessage(pp::Var("Failed to create Mosh thread: "));
+      PostMessage(pp::Var(strerror(thread_err)));
+      PostMessage(pp::Var("\r\n"));
+    }
+
     return true;
   }
 
-  static void *Launch(void *data) {
+  static void *Mosh(void *data) {
     MoshClientInstance *thiz = reinterpret_cast<MoshClientInstance *>(data);
 
     setenv("TERM", "xterm-256color", 1);
     char *argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
     mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
-    thiz->PostMessage(pp::Var("Mosh has exited."));
+    thiz->PostMessage(pp::Var("Mosh has exited.\r\n"));
     return 0;
   }
 
@@ -232,8 +240,15 @@ class MoshClientModule : public pp::Module {
 //
 extern "C" {
 
-// These are used to avoid CORE dumps. Should be OK to stub them out.
+// These are used to avoid CORE dumps. Should be OK to stub them out. However,
+// it seems that on x86_32, pthread_create() calls this with RLIMIT_STACK. It
+// needs to return an error at least, otherwise the thread cannot be created.
+// This does not seem to be an issue on x86_64.
 int getrlimit(int resource, struct rlimit *rlim) {
+  if (resource == RLIMIT_STACK) {
+    errno = EAGAIN;
+    return -1;
+  }
   return 0;
 }
 int setrlimit(int resource, const struct rlimit *rlim) {
