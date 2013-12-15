@@ -135,13 +135,6 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
   export NACLPORTS_LIBDIR=${NACL_TOOLCHAIN_ROOT}/${NACL_CROSS_PREFIX}/usr/lib
   eval $(${NACL_PORTS}/src/build_tools/nacl_env.sh --print)
 
-  export CC=${NACLCC}
-  export CXX=${NACLCXX}
-  export AR=${NACLAR}
-  export RANLIB=${NACLRANLIB}
-  export PKG_CONFIG_LIBDIR=${NACLPORTS_LIBDIR}
-  export PKG_CONFIG_PATH=${PKG_CONFIG_LIBDIR}/pkgconfig
-  export PATH=${NACL_BIN_PATH}:${PATH};
   # TODO: See if there's a way to get the linker to prefer main() in libppapi
   # instead of using this hack.
   export CXXFLAGS="-D__NACL__"
