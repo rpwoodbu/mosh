@@ -73,14 +73,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
       <li>Must specify IP address, not hostname.
       <li>Most fatal errors only log to stderr, not to the screen.
       <li>Too easy to close the window by mistake.
-      <li>i686 port may not work; still being tested This probably affects all
-        MacOS users.
-      <li>i686 port is built with --disable-hardening, which reduces
+      <li>x86_32 port is built with --disable-hardening, which reduces
         security somewhat.
     </ul>
 
     <h3>Changelog</h3>
     <ul>
+      <li>0.0.0.9 - Fix for x86_32 failing to start. Tested on Linux; not yet
+        tested on MacOS.
       <li>0.0.0.8 - Build against pepper_31 and newer naclports. Eliminate
         spurious new browser tab on connect.
       <li>0.0.0.7 - Add support for i686 (needed for 32-bit Chrome, e.g.
