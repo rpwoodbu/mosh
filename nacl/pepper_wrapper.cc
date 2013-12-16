@@ -20,14 +20,14 @@
 #include <vector>
 #include <errno.h>
 #include <fcntl.h>
+#include <langinfo.h>
+#include <netdb.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h> // TODO: Remove when debugs are eliminated.
 #include <stdlib.h>
 #include <string.h>
-#include <langinfo.h>
-#include <netdb.h>
-#include <pthread.h>
 #include <sys/ioctl.h>
 #include <sys/resource.h>
 #include <sys/select.h>
@@ -37,6 +37,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "irt.h"
 #include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/instance_handle.h"
 #include "ppapi/cpp/module.h"
@@ -125,6 +126,22 @@ class WindowChange : public PepperPOSIX::Signal {
   int width_;
   int height_;
   void (*sigwinch_handler_)(int);
+};
+
+class DevURandom : public PepperPOSIX::Reader {
+ public:
+  DevURandom() : Reader(NULL) {
+    nacl_interface_query(NACL_IRT_RANDOM_v0_1, &random_, sizeof(random_));
+  }
+
+  virtual ssize_t Read(void *buf, size_t count) {
+    size_t bytes_read = 0;
+    random_.get_random_bytes(buf, count, &bytes_read);
+    return bytes_read;
+  }
+
+ private:
+  struct nacl_irt_random random_;
 };
 
 class MoshClientInstance : public pp::Instance {
@@ -321,10 +338,38 @@ int ioctl(int d, long unsigned int request, ...) {
 }
 
 //
-// Wrap all unistd functions to communicate via the Pepper API.
+// Wrap fopen() and friends to capture access to /dev/urandom.
 //
 
-// TODO: Determine if it is necessary to emulate /dev/urandom.
+FILE *fopen(const char *path, const char *mode) {
+  string pathname(path);
+  if (pathname != "/dev/urandom") {
+    errno = EIO;
+    return NULL;
+  }
+  FILE *stream = new FILE;
+  memset(stream, 0, sizeof(*stream));
+  stream->_fileno = instance->posix_->AddFile(new DevURandom);
+  return stream;
+}
+
+int fileno(FILE *stream) {
+  return stream->_fileno;
+}
+
+int fclose(FILE *stream) {
+  fprintf(stderr, "fclose(): fileno: %d\n", fileno(stream));
+  int result = close(fileno(stream));
+  if (result == 0) {
+    delete stream;
+    return 0;
+  }
+  return result;
+}
+
+//
+// Wrap all unistd functions to communicate via the Pepper API.
+//
 
 ssize_t read(int fd, void *buf, size_t count) {
   return instance->posix_->Read(fd, buf, count);

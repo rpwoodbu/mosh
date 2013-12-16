@@ -222,4 +222,11 @@ ssize_t POSIX::SendTo(int sockfd, const void *buf, size_t len, int flags,
   return udp->Send(buffer, flags, addr);
 }
 
+int POSIX::AddFile(File *file) {
+  int fd = NextFileDescriptor_();
+  files_[fd] = file;
+  file->target_ = selector_.NewTarget(fd);
+  return fd;
+}
+
 } // namespace PepperPOSIX

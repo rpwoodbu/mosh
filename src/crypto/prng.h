@@ -56,8 +56,6 @@ class PRNG {
   PRNG & operator=( const PRNG & );
 
  public:
-  // TODO: Implement proper randomness.
-  /* Stub out this for now.
   PRNG() : randfile( rdev, std::ifstream::in | std::ifstream::binary ) {}
 
   void fill( void *dest, size_t size ) {
@@ -70,10 +68,6 @@ class PRNG {
       throw CryptoException( "Could not read from " + std::string( rdev ) );
     }
   }
-  */
-  PRNG() {}
-  void fill( void *dest, size_t size ) {}
-  // TODO: Remove stubbed out section.
 
   uint8_t uint8() {
     uint8_t x;

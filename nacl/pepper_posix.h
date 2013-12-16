@@ -114,6 +114,10 @@ class POSIX {
   ssize_t SendTo(int sockfd, const void *buf, size_t len, int flags,
       const struct sockaddr *dest_addr, socklen_t addrlen);
 
+  // Add an arbitrary File to be served. Returns a file descriptor. Takes
+  // ownership of file.
+  int AddFile(File *file);
+
  private:
   // Map of file descriptors and the File objects they represent.
   ::std::map<int, File *> files_;
