@@ -38,10 +38,12 @@
 #include <unistd.h>
 
 #include "irt.h"
+#include "ppapi/cpp/host_resolver.h"
 #include "ppapi/cpp/instance.h"
 #include "ppapi/cpp/instance_handle.h"
 #include "ppapi/cpp/module.h"
 #include "ppapi/cpp/var.h"
+#include "ppapi/utility/completion_callback_factory.h"
 
 using ::std::string;
 using ::std::vector;
@@ -149,7 +151,7 @@ class MoshClientInstance : public pp::Instance {
   explicit MoshClientInstance(PP_Instance instance) :
       pp::Instance(instance), addr_(NULL), port_(NULL),
       posix_(NULL), keyboard_(NULL), instance_handle_(this),
-      window_change_(NULL) {
+      window_change_(NULL), resolver_(instance_handle_), cc_factory_(this) {
     ++num_instances_;
     assert (num_instances_ == 1);
     ::instance = this;
@@ -178,21 +180,26 @@ class MoshClientInstance : public pp::Instance {
   }
 
   virtual bool Init(uint32_t argc, const char *argn[], const char *argv[]) {
+    bool got_addr = false;
     for (int i = 0; i < argc; ++i) {
       string name = argn[i];
       int len = strlen(argv[i]) + 1;
       if (name == "key") {
         setenv("MOSH_KEY", argv[i], 1);
       } else if (name == "addr" && addr_ == NULL) {
-        addr_ = new char[len];
-        strncpy(addr_, argv[i], len);
+        // TODO: Support IPv6 when Mosh does.
+        const PP_HostResolver_Hint hint = {PP_NETADDRESS_FAMILY_IPV4, 0};
+        // Mosh will launch via this callback when the resolution completes.
+        resolver_.Resolve(argv[i], 0, hint,
+            cc_factory_.NewCallback(&MoshClientInstance::Launch));
+        got_addr = true;
       } else if (name == "port" && port_ == NULL) {
         port_ = new char[len];
         strncpy(port_, argv[i], len);
       }
     }
 
-    if (addr_ == NULL || port_ == NULL) {
+    if (got_addr == false || port_ == NULL) {
       fprintf(stderr, "Must supply addr and port attributes.\n");
       return false;
     }
@@ -203,6 +210,25 @@ class MoshClientInstance : public pp::Instance {
     posix_ = new PepperPOSIX::POSIX(
         instance_handle_, keyboard_, NULL, NULL, window_change_);
 
+    // Mosh will launch via the resolution callback (see above).
+    return true;
+  }
+
+  void Launch(int32_t result) {
+    if (result != PP_OK) {
+      fprintf(stderr, "Resolution failed: %d\n", result);
+      return;
+    }
+    if (resolver_.GetNetAddressCount() < 1) {
+      fprintf(stderr, "There were no addresses.\n");
+      return;
+    }
+    pp::NetAddress address = resolver_.GetNetAddress(0);
+    string addr_str = address.DescribeAsString(false).AsString();
+    int addr_len = addr_str.size() + 1;
+    addr_ = new char[addr_len];
+    strncpy(addr_, addr_str.c_str(), addr_len);
+
     // Launch mosh-client.
     int thread_err = pthread_create(&thread_, NULL, Mosh, this);
     if (thread_err != 0) {
@@ -210,8 +236,6 @@ class MoshClientInstance : public pp::Instance {
       PostMessage(pp::Var(strerror(thread_err)));
       PostMessage(pp::Var("\r\n"));
     }
-
-    return true;
   }
 
   static void *Mosh(void *data) {
@@ -237,6 +261,8 @@ class MoshClientInstance : public pp::Instance {
   char *port_;
   pp::InstanceHandle instance_handle_;
   Keyboard *keyboard_;
+  pp::CompletionCallbackFactory<MoshClientInstance> cc_factory_;
+  pp::HostResolver resolver_;
 };
 
 // Initialize static data for MoshClientInstance.
