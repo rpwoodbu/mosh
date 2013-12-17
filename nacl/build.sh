@@ -105,7 +105,9 @@ if [[ ! -d "build/${PROTOBUF_DIR}" ]]; then
   ./configure && make
   popd > /dev/null
 fi
-export PATH="$(pwd)/build/${PROTOBUF_DIR}/src:${PATH}"
+PROTO_PATH="$(pwd)/build/${PROTOBUF_DIR}/src"
+export PATH="${PROTO_PATH}:${PATH}"
+export LD_LIBRARY_PATH="${PROTO_PATH}/.libs"
 
 export NACL_GLIBC="1"
 
