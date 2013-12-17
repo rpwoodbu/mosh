@@ -137,10 +137,6 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
   export NACLPORTS_LIBDIR=${NACL_TOOLCHAIN_ROOT}/${NACL_CROSS_PREFIX}/usr/lib
   eval $(${NACL_PORTS}/src/build_tools/nacl_env.sh --print)
 
-  # TODO: See if there's a way to get the linker to prefer main() in libppapi
-  # instead of using this hack.
-  export CXXFLAGS="-D__NACL__"
-
   if [[ ${FAST} != "fast" ]]; then
     pushd .. > /dev/null
     if [[ ! -f configure ]]; then
@@ -162,7 +158,7 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
     ../../../configure ${configure_options}
     echo "Building Mosh with NaCl compiler..."
     make clean
-    make || echo "Ignore error."
+    make
     popd > /dev/null # ${build_dir}
   fi
 

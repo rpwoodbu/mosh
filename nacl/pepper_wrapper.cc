@@ -49,7 +49,9 @@ using ::std::string;
 using ::std::vector;
 
 // Forward declaration of mosh_main(), as it has no header file.
+extern "C" {
 int mosh_main(int argc, char *argv[]);
+}
 
 // Make the singleton MoshClientInstance available to C functions in this
 // module.

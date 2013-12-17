@@ -29,7 +29,7 @@ CXX_HEADERS:=\
 	pepper_posix_udp.h
 
 OBJECTS:=\
-	ARCH/src/frontend/mosh-client.o \
+	ARCH/src/frontend/mosh-client-nacl.o \
 	ARCH/src/frontend/stmclient.o \
 	ARCH/src/frontend/terminaloverlay.o
 
@@ -76,17 +76,20 @@ all: $(PROJECT).zip
 nmf: $(PROJECT).nmf
 
 $(PROJECT).zip : $(PROJECT).nmf
-	pushd $(OUTDIR) && zip -r ../$(PROJECT).zip . && popd
+	cd $(OUTDIR) && zip -r ../$(PROJECT).zip .
 
 # Define 32 bit compile and link rules for C++ sources
 i686_OBJS:=$(patsubst %.cc,%_32.o,$(CXX_SOURCES))
 $(i686_OBJS) : %_32.o : %.cc $(THIS_MAKE) $(CXX_HEADERS)
 	$(CXX) -o $@ -c $< -m32 $(CXXFLAGS)
 
+build/i686/src/frontend/mosh-client-nacl.o : build/i686/src/frontend/mosh-client.o
+	objcopy --redefine-sym main=mosh_main $< $@
+
 i686_MOSHOBJS:=$(patsubst ARCH%,build/i686%,$(OBJECTS))
 i686_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/i686%,$(LIBDIRS))
-$(PROJECT)_i686.nexe : $(i686_OBJS)
-	$(CXX) -o $@ $^ -m32 $(i686_MOSHOBJS) $(LIBS) $(CXXFLAGS) \
+$(PROJECT)_i686.nexe : $(i686_OBJS) $(i686_MOSHOBJS)
+	$(CXX) -o $@ $^ -m32 $(LIBS) $(CXXFLAGS) \
 	$(LDFLAGS) $(i686_MOSHLIBDIRS)
 
 # Define 64 bit compile and link rules for C++ sources
@@ -94,10 +97,13 @@ x86_64_OBJS:=$(patsubst %.cc,%_64.o,$(CXX_SOURCES))
 $(x86_64_OBJS) : %_64.o : %.cc $(THIS_MAKE)
 	$(CXX) -o $@ -c $< -m64 $(CXXFLAGS)
 
+build/x86_64/src/frontend/mosh-client-nacl.o : build/x86_64/src/frontend/mosh-client.o
+	objcopy --redefine-sym main=mosh_main $< $@
+
 x86_64_MOSHOBJS:=$(patsubst ARCH%,build/x86_64%,$(OBJECTS))
 x86_64_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/x86_64%,$(LIBDIRS))
-$(PROJECT)_x86_64.nexe : $(x86_64_OBJS)
-	$(CXX) -o $@ $^ -m64 $(x86_64_MOSHOBJS) $(LIBS) $(CXXFLAGS) \
+$(PROJECT)_x86_64.nexe : $(x86_64_OBJS) $(x86_64_MOSHOBJS)
+	$(CXX) -o $@ $^ -m64 $(LIBS) $(CXXFLAGS) \
 	$(LDFLAGS) $(x86_64_MOSHLIBDIRS)
 
 # Create NaCl Manifest
