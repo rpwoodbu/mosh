@@ -404,8 +404,7 @@ ssize_t read(int fd, void *buf, size_t count) {
 }
 
 ssize_t write(int fd, const void *buf, size_t count) {
-  switch (fd) {
-   case 1: // STDOUT
+  if (fd == 1) { // STDOUT
     string b((const char *)buf, count);
     instance->PostMessage(pp::Var(b));
     return count;
