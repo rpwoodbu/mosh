@@ -58,7 +58,8 @@ POSIX::~POSIX() {
 
 int POSIX::Close(int fd) {
   if (files_.count(fd) == 0) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
 
   int result = files_[fd]->Close();
@@ -70,11 +71,13 @@ int POSIX::Close(int fd) {
 
 ssize_t POSIX::Read(int fd, void *buf, size_t count) {
   if (files_.count(fd) == 0) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
   Reader *reader = dynamic_cast<Reader *>(files_[fd]);
   if (reader == NULL) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
 
   return reader->Read(buf, count);
@@ -82,11 +85,13 @@ ssize_t POSIX::Read(int fd, void *buf, size_t count) {
 
 ssize_t POSIX::Write(int fd, const void *buf, size_t count) {
   if (files_.count(fd) == 0) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
   Writer *writer = dynamic_cast<Writer *>(files_[fd]);
   if (writer == NULL) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
 
   return writer->Write(buf, count);
@@ -113,12 +118,14 @@ int POSIX::Socket(int domain, int type, int protocol) {
 
 int POSIX::Dup(int oldfd) {
   if (files_.count(oldfd) == 0) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
   // Currently can only dup UDP sockets.
   UDP *udp = dynamic_cast<UDP *>(files_[oldfd]);
   if (udp == NULL) {
-    return EBADF;
+    errno = EBADF;
+    return -1
   }
 
   return Socket(AF_INET, SOCK_DGRAM, 0);
@@ -179,11 +186,13 @@ int POSIX::PSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfd
 
 ssize_t POSIX::RecvMsg(int sockfd, struct msghdr *msg, int flags) {
   if (files_.count(sockfd) == 0) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
   UDP *udp = dynamic_cast<UDP *>(files_[sockfd]);
   if (udp == NULL) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
 
   return udp->Receive(msg, flags);
@@ -212,7 +221,8 @@ ssize_t POSIX::SendTo(int sockfd, const void *buf, size_t len, int flags,
   }
   UDP *udp = dynamic_cast<UDP *>(files_[sockfd]);
   if (udp == NULL) {
-    return EBADF;
+    errno = EBADF;
+    return -1;
   }
 
   vector<char> buffer((const char*)buf, (const char*)buf+len);
