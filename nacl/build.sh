@@ -58,7 +58,7 @@ if [[ "${NACL_SDK_ROOT}" == "" ]]; then
   fi
   if [[ "${FAST}" != "fast" ]]; then
     pushd "build/${NACL_SDK_DIR}"
-    ./naclsdk update pepper_31
+    ./naclsdk update "${NACL_SDK_VERSION}"
     popd > /dev/null
   fi
   export NACL_SDK_ROOT="$(pwd)/build/${NACL_SDK_DIR}/${NACL_SDK_VERSION}"
