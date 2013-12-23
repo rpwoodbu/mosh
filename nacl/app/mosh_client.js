@@ -99,7 +99,20 @@ mosh.CommandInstance.prototype.run = function() {
 };
 
 mosh.CommandInstance.prototype.onMessage_ = function(e) {
-  this.io.print(e.data);
+  var data = e.data['data'];
+  var type = e.data['type'];
+  if (type == 'display') {
+    this.io.print(data);
+  } else if (type == 'log') {
+    console.log(String(data));
+  } else if (type == 'error') {
+    // TODO: Find a way to output errors that doesn't interfere with the
+    // terminal window.
+    this.io.print('ERROR: ' + String(data) + '\r');
+    console.log('ERROR: ' + String(data));
+  } else {
+    console.log('Unknown message type: ' + JSON.stringify(e.data));
+  }
 };
 
 mosh.CommandInstance.prototype.sendString_ = function(string) {

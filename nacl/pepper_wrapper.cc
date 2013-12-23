@@ -25,7 +25,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdio.h> // TODO: Remove when debugs are eliminated.
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -78,6 +78,7 @@ class Keyboard : public PepperPOSIX::Reader {
       target_->Update(keypresses_.size() > 0);
       result = 1;
     } else {
+      // Cannot use Log() here; circular dependency.
       fprintf(stderr, "read(): From STDIN, no data, treat as nonblocking.\n");
     }
     pthread_mutex_unlock(&keypresses_lock_);
@@ -177,8 +178,54 @@ class MoshClientInstance : public pp::Instance {
       int32_t num = var.AsInt();
       window_change_->Update(num >> 16, num & 0xffff);
     } else {
-      fprintf(stderr, "Got a message of an unexpected type.\n");
+      Log("Got a message of an unexpected type.");
     }
+  }
+
+  // Type of data to output to Javascript.
+  enum OutputType {
+    TYPE_DISPLAY = 0,
+    TYPE_LOG,
+    TYPE_ERROR,
+  };
+
+  // Low-level function to output data to Javascript.
+  void Output(OutputType t, const string &s) {
+    string type;
+    switch (t) {
+     case TYPE_DISPLAY:
+      type = "display";
+      break;
+     case TYPE_LOG:
+      type = "log";
+      break;
+     case TYPE_ERROR:
+      type = "error";
+      break;
+     default:
+      // Bad type.
+      return;
+    }
+
+    pp::VarDictionary dict;
+    dict.Set(pp::Var("type"), pp::Var(type));
+    dict.Set(pp::Var("data"), pp::Var(s));
+    PostMessage(pp::Var(dict));
+  }
+
+  // Like Output(), but printf-style.
+  void Outputf(OutputType t, const char *format, va_list argp) {
+    char buf[1024];
+    int size = vsnprintf(buf, sizeof(buf), format, argp);
+    Output(t, string((const char *)buf, size));
+  }
+
+  // Sends messages to the Javascript console log.
+  void Log(const char *format, ...) {
+    va_list argp;
+    va_start(argp, format);
+    Outputf(TYPE_LOG, format, argp);
+    va_end(argp);
   }
 
   virtual bool Init(uint32_t argc, const char *argn[], const char *argv[]) {
@@ -202,7 +249,7 @@ class MoshClientInstance : public pp::Instance {
     }
 
     if (got_addr == false || port_ == NULL) {
-      fprintf(stderr, "Must supply addr and port attributes.\n");
+      Log("Must supply addr and port attributes.");
       return false;
     }
 
@@ -218,11 +265,11 @@ class MoshClientInstance : public pp::Instance {
 
   void Launch(int32_t result) {
     if (result != PP_OK) {
-      fprintf(stderr, "Resolution failed: %d\n", result);
+      Log("Resolution failed: %d", result);
       return;
     }
     if (resolver_.GetNetAddressCount() < 1) {
-      fprintf(stderr, "There were no addresses.\n");
+      Log("There were no addresses.");
       return;
     }
     pp::NetAddress address = resolver_.GetNetAddress(0);
@@ -246,7 +293,6 @@ class MoshClientInstance : public pp::Instance {
     setenv("TERM", "xterm-256color", 1);
     char *argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
     mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
-    thiz->PostMessage(pp::Var("Mosh has exited.\r\n"));
     return 0;
   }
 
@@ -269,6 +315,16 @@ class MoshClientInstance : public pp::Instance {
 
 // Initialize static data for MoshClientInstance.
 int MoshClientInstance::num_instances_ = 0;
+
+// Logging function in global namespace for convenience.
+void Log(const char *format, ...) {
+  va_list argp;
+  va_start(argp, format);
+  if (instance != NULL) {
+    instance->Outputf(MoshClientInstance::TYPE_LOG, format, argp);
+  }
+  va_end(argp);
+}
 
 class MoshClientModule : public pp::Module {
  public:
@@ -302,7 +358,7 @@ int setrlimit(int resource, const struct rlimit *rlim) {
 
 int sigaction(int signum, const struct sigaction *act,
     struct sigaction *oldact) {
-  fprintf(stderr, "sigaction(%d, ...)\n", signum);
+  Log("sigaction(%d, ...)", signum);
   assert(oldact == NULL);
   switch (signum) {
   case SIGWINCH:
@@ -352,7 +408,7 @@ int tcsetattr(int fd, int optional_sctions, const struct termios *termios_p) {
 
 int ioctl(int d, long unsigned int request, ...) {
   if (d != STDIN_FILENO || request != TIOCGWINSZ) {
-    fprintf(stderr, "ioctl(%d, %u, ...): Got unexpected call\n", d, request);
+    Log("ioctl(%d, %u, ...): Got unexpected call", d, request);
     errno = EPROTO;
     return -1;
   }
@@ -366,7 +422,7 @@ int ioctl(int d, long unsigned int request, ...) {
 }
 
 //
-// Wrap fopen() and friends to capture access to /dev/urandom.
+// Wrap fopen() and friends to capture access to stderr and /dev/urandom.
 //
 
 FILE *fopen(const char *path, const char *mode) {
@@ -381,12 +437,24 @@ FILE *fopen(const char *path, const char *mode) {
   return stream;
 }
 
+int fprintf(FILE *stream, const char *format, ...) {
+  if (fileno(stream) != STDERR_FILENO) {
+    Log("fprintf(): Unexpected fileno: %d", fileno(stream));
+  }
+  va_list argp;
+  va_start(argp, format);
+  if (instance != NULL) {
+    instance->Outputf(MoshClientInstance::TYPE_ERROR, format, argp);
+  }
+  va_end(argp);
+}
+
 int fileno(FILE *stream) {
   return stream->_fileno;
 }
 
 int fclose(FILE *stream) {
-  fprintf(stderr, "fclose(): fileno: %d\n", fileno(stream));
+  Log("fclose(): fileno: %d", fileno(stream));
   int result = close(fileno(stream));
   if (result == 0) {
     delete stream;
@@ -404,15 +472,25 @@ ssize_t read(int fd, void *buf, size_t count) {
 }
 
 ssize_t write(int fd, const void *buf, size_t count) {
-  if (fd == 1) { // STDOUT
-    string b((const char *)buf, count);
-    instance->PostMessage(pp::Var(b));
+  if (fd == STDOUT_FILENO) {
+    string s((const char *)buf, count);
+    instance->Output(MoshClientInstance::TYPE_DISPLAY, s);
     return count;
   }
 
-  fprintf(stderr, "write(%d, ...): Unexpected write.\n", fd);
+  Log("write(%d, ...): Unexpected write.", fd);
   errno = EIO;
   return -1;
+}
+
+// printf is used rarely (only once at the time of this writing).
+int printf(const char *format, ...) {
+  char buf[1024];
+  va_list argp;
+  va_start(argp, format);
+  int size = vsnprintf(buf, sizeof(buf), format, argp);
+  va_end(argp);
+  return write(STDOUT_FILENO, buf, size);
 }
 
 int close(int fd) {
@@ -425,7 +503,7 @@ int socket(int domain, int type, int protocol) {
 
 int setsockopt(int sockfd, int level, int optname,
     const void *optval, socklen_t optlen) {
-  fprintf(stderr, "setsockopt stub called; fd=%d\n", sockfd);
+  Log("setsockopt stub called; fd=%d", sockfd);
   return 0;
 }
 

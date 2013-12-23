@@ -21,7 +21,7 @@
 #include "pepper_posix_udp.h"
 #include <assert.h>
 #include <errno.h>
-#include <stdio.h> // TODO: Remove when debugs are eliminated.
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -58,8 +58,6 @@ UDP::~UDP() {
 }
 
 ssize_t UDP::Receive(struct ::msghdr *message, int flags) {
-  //fprintf(stderr, "UDP::Receive(%llx, %x)\n", message, flags);
-
   pthread_mutex_lock(&packets_lock_);
   if (packets_.size() == 0) {
     pthread_mutex_unlock(&packets_lock_);
@@ -95,9 +93,6 @@ ssize_t UDP::Receive(struct ::msghdr *message, int flags) {
 }
 
 void UDP::AddPacket(struct ::msghdr *message) {
-  //fprintf(stderr, "UDP::AddPacket(%llx)\n", message);
-  //fprintf(stderr, "UDP::AddPacket(): sa_family: %d\n",
-  //    ((::sockaddr *)message->msg_name)->sa_family);
   pthread_mutex_lock(&packets_lock_);
   packets_.push_back(message);
   pthread_mutex_unlock(&packets_lock_);
@@ -106,7 +101,7 @@ void UDP::AddPacket(struct ::msghdr *message) {
 
 int UDP::Close() {
   // TODO: Implement.
-  fprintf(stderr, "UDP::Close()\n");
+  fprintf(stderr, "UDP::Close(): not implemented\n");
   return 0;
 }
 

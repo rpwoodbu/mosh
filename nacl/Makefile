@@ -63,7 +63,7 @@ override LDFLAGS+=-lppapi_cpp -lppapi -lz -lssl -lncurses -lprotobuf -lcrypto \
 #override WARNINGS+=-Wno-long-long -Wall -Wswitch-enum -Werror
 #override CXXFLAGS+=-pthread -std=gnu++0x $(WARNINGS) -Iinclude \
         -I$(NACL_SDK_ROOT)/include
-override CXXFLAGS+=-pthread $(WARNINGS) -I$(NACL_SDK_ROOT)/include
+override CXXFLAGS+=-pthread $(WARNINGS) -I$(NACL_SDK_ROOT)/include -fno-builtin
 #override CFLAGS+=-pthread $(WARNINGS) -Iinclude -I$(NACL_SDK_ROOT)/include
 
 COMPAT_INC:=-I$(PNACL_TC_ROOT)/usr/include/glibc-compat

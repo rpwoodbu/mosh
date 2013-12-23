@@ -18,7 +18,7 @@
 #include "pepper_posix_native_udp.h"
 
 #include <netinet/in.h>
-#include <stdio.h> // TODO: Remove when debugs are eliminated.
+#include <stdio.h>
 #include <string.h>
 #include <sys/uio.h>
 
@@ -47,13 +47,9 @@ int NativeUDP::Bind(const PP_NetAddress_IPv4 &address) {
     fprintf(stderr, "NativeUDP::Bind() Address is bogus.\n");
     // TODO: Return something appropriate.
     return false;
-  } else {
-    fprintf(stderr, "NativeUDP::Bind() Address is %s\n",
-        string_address.AsString().c_str());
   }
 
   int32_t result = socket_->Bind(net_address, pp::CompletionCallback());
-  fprintf(stderr, "NativeUDP::Bind() result=%d\n", result);
   if (result == PP_OK) {
     bound_ = true;
     pp::Module::Get()->core()->CallOnMainThread(
@@ -96,16 +92,6 @@ void NativeUDP::StartReceive(int32_t unused) {
 
 // Received is the callback result of StartReceive().
 void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
-  //fprintf(stderr, "NativeUDP::Received(%d, ...)\n", result);
-  //pp::Var var_address = address.DescribeAsString(true);
-  //if (var_address.is_string()) {
-  //  fprintf(stderr, "NativeUDP::Received(_, %s)\n", 
-  //      var_address.AsString().c_str());
-  //} else {
-  //  fprintf(stderr,
-  //      "NativeUDP::Received(): Address did not describe as string!");
-  //}
-
   if (result < 0) {
     fprintf(stderr,
         "NativeUDP::Received(%d, ...): Negative result; bailing.\n", result);
@@ -141,7 +127,6 @@ void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
   memcpy(
       message->msg_iov->iov_base, receive_buffer_, message->msg_iov->iov_len);
 
-  //fprintf(stderr, "NativeUDP::Received(): AddPacket(%llx)\n", message);
   AddPacket(message); // Takes ownership.
 
   // Await another packet.

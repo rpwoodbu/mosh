@@ -149,6 +149,8 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
     mkdir -p "${build_dir}"
     pushd "${build_dir}" > /dev/null
     echo "Configuring..."
+    # Built-in functions cannot be overridden.
+    export CXXFLAGS="${CXXFLAGS} -fno-builtin"
     configure_options="--host=${arch} --enable-client=yes --enable-server=no"
     if [[ "${arch}" == "i686" ]]; then
       # The i686 build doesn't seem to have stack protection, even though
