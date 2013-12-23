@@ -53,6 +53,7 @@ LIBS:=\
 OSNAME:=$(shell python $(NACL_SDK_ROOT)/tools/getos.py)
 TC_PATH:=$(abspath $(NACL_SDK_ROOT)/toolchain/$(OSNAME)_x86_glibc)
 CXX:=$(TC_PATH)/bin/i686-nacl-g++
+OBJCOPY:=$(TC_PATH)/bin/i686-nacl-objcopy
 
 # Project Build flags
 override LDFLAGS+=-lppapi_cpp -lppapi -lz -lssl -lncurses -lprotobuf -lcrypto \
@@ -84,7 +85,7 @@ $(i686_OBJS) : %_32.o : %.cc $(THIS_MAKE) $(CXX_HEADERS)
 	$(CXX) -o $@ -c $< -m32 $(CXXFLAGS)
 
 build/i686/src/frontend/mosh-client-nacl.o : build/i686/src/frontend/mosh-client.o
-	objcopy --redefine-sym main=mosh_main $< $@
+	$(OBJCOPY) --redefine-sym main=mosh_main $< $@
 
 i686_MOSHOBJS:=$(patsubst ARCH%,build/i686%,$(OBJECTS))
 i686_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/i686%,$(LIBDIRS))
@@ -98,7 +99,7 @@ $(x86_64_OBJS) : %_64.o : %.cc $(THIS_MAKE)
 	$(CXX) -o $@ -c $< -m64 $(CXXFLAGS)
 
 build/x86_64/src/frontend/mosh-client-nacl.o : build/x86_64/src/frontend/mosh-client.o
-	objcopy --redefine-sym main=mosh_main $< $@
+	$(OBJCOPY) --redefine-sym main=mosh_main $< $@
 
 x86_64_MOSHOBJS:=$(patsubst ARCH%,build/x86_64%,$(OBJECTS))
 x86_64_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/x86_64%,$(LIBDIRS))

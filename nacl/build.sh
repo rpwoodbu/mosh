@@ -149,7 +149,7 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
     mkdir -p "${build_dir}"
     pushd "${build_dir}" > /dev/null
     echo "Configuring..."
-    configure_options="--host=nacl --enable-client=yes --enable-server=no"
+    configure_options="--host=${arch} --enable-client=yes --enable-server=no"
     if [[ "${arch}" == "i686" ]]; then
       # The i686 build doesn't seem to have stack protection, even though
       # "configure" finds it, so disabling hardening. :(
@@ -158,7 +158,7 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
     ../../../configure ${configure_options}
     echo "Building Mosh with NaCl compiler..."
     make clean
-    make
+    make || echo "*** Ignore error IFF it was the linking step. ***"
     popd > /dev/null # ${build_dir}
   fi
 
