@@ -69,7 +69,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     <p>
     <ul>
       <li>Bad interaction with tmux and windowed areas.
-      <li>Most fatal errors only log to stderr, not to the screen.
       <li>Too easy to close the window by mistake.
       <li>x86_32 port is built with --disable-hardening, which reduces
         security somewhat.
@@ -78,6 +77,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     <h3>Changelog</h3>
     <ul>
+      <li>0.0.0.11 - Improved error reporting. stderr now goes to the terminal
+        (just like the real mosh-client), and also the Javascript console. If
+        in doubt, check the Javascript console, as the terminal may obscure
+        errors.
       <li>0.0.0.10 - Now permits hostnames as well as IP addresses. Crypto
         randomness is now actually random. Tested successfully on Linux and
         MacOS.
