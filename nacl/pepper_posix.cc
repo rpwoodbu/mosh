@@ -125,7 +125,7 @@ int POSIX::Dup(int oldfd) {
   UDP *udp = dynamic_cast<UDP *>(files_[oldfd]);
   if (udp == NULL) {
     errno = EBADF;
-    return -1
+    return -1;
   }
 
   return Socket(AF_INET, SOCK_DGRAM, 0);
