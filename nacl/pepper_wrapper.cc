@@ -101,10 +101,22 @@ class Keyboard : public PepperPOSIX::Reader {
   pthread_mutex_t keypresses_lock_;
 };
 
-// Implements the plumbing to get output to the terminal.
+// Implements the plumbing to get stdout to the terminal.
 class Terminal : public PepperPOSIX::Writer {
  public:
   Terminal(MoshClientInstance *instance) : instance_(instance) {}
+
+  // This has to be defined below MoshClientInstance due to dependence on it.
+  virtual ssize_t Write(const void *buf, size_t count);
+
+ private:
+  MoshClientInstance *instance_;
+};
+
+// Implements the plumbing to get stderr to Javascript.
+class ErrorLog : public PepperPOSIX::Writer {
+ public:
+  ErrorLog(MoshClientInstance *instance) : instance_(instance) {}
 
   // This has to be defined below MoshClientInstance due to dependence on it.
   virtual ssize_t Write(const void *buf, size_t count);
@@ -225,17 +237,17 @@ class MoshClientInstance : public pp::Instance {
   }
 
   // Like Output(), but printf-style.
-  void Outputf(OutputType t, const char *format, va_list argp) {
+  void Logv(const char *format, va_list argp) {
     char buf[1024];
     int size = vsnprintf(buf, sizeof(buf), format, argp);
-    Output(t, string((const char *)buf, size));
+    Output(TYPE_LOG, string((const char *)buf, size));
   }
 
   // Sends messages to the Javascript console log.
   void Log(const char *format, ...) {
     va_list argp;
     va_start(argp, format);
-    Outputf(TYPE_LOG, format, argp);
+    Logv(format, argp);
     va_end(argp);
   }
 
@@ -267,9 +279,10 @@ class MoshClientInstance : public pp::Instance {
     // Setup communications.
     keyboard_ = new Keyboard();
     Terminal *terminal = new Terminal(this);
+    ErrorLog *error_log = new ErrorLog(this);
     window_change_ = new WindowChange();
     posix_ = new PepperPOSIX::POSIX(
-        instance_handle_, keyboard_, terminal, NULL, window_change_);
+        instance_handle_, keyboard_, terminal, error_log, window_change_);
 
     // Mosh will launch via the resolution callback (see above).
     return true;
@@ -334,12 +347,18 @@ ssize_t Terminal::Write(const void *buf, size_t count) {
  return count;
 }
 
+ssize_t ErrorLog::Write(const void *buf, size_t count) {
+ string s((const char *)buf, count);
+ instance_->Output(MoshClientInstance::TYPE_ERROR, s);
+ return count;
+}
+
 // Logging function in global namespace for convenience.
 void Log(const char *format, ...) {
   va_list argp;
   va_start(argp, format);
   if (instance != NULL) {
-    instance->Outputf(MoshClientInstance::TYPE_LOG, format, argp);
+    instance->Logv(format, argp);
   }
   va_end(argp);
 }
@@ -456,15 +475,16 @@ FILE *fopen(const char *path, const char *mode) {
 }
 
 int fprintf(FILE *stream, const char *format, ...) {
-  if (fileno(stream) != STDERR_FILENO) {
-    Log("fprintf(): Unexpected fileno: %d", fileno(stream));
-  }
+  char buf[1024];
   va_list argp;
   va_start(argp, format);
-  if (instance != NULL) {
-    instance->Outputf(MoshClientInstance::TYPE_ERROR, format, argp);
-  }
+  int size = vsnprintf(buf, sizeof(buf), format, argp);
   va_end(argp);
+  if (instance != NULL) {
+    return instance->posix_->Write(fileno(stream), buf, size);
+  }
+  errno = EIO;
+  return -1;
 }
 
 int fileno(FILE *stream) {
