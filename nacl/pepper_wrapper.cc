@@ -61,7 +61,7 @@ static class MoshClientInstance *instance = NULL;
 // plumbing is in the MoshClientInstance::HandleMessage().
 class Keyboard : public PepperPOSIX::Reader {
  public:
-  Keyboard() : Reader(NULL) {
+  Keyboard() {
     pthread_mutex_init(&keypresses_lock_, NULL);
   }
   virtual ~Keyboard() {
@@ -105,8 +105,7 @@ class Keyboard : public PepperPOSIX::Reader {
 // is in MoshClientInstance::HandleMessage();
 class WindowChange : public PepperPOSIX::Signal {
  public:
-  WindowChange() : Signal(NULL), sigwinch_handler_(NULL),
-      width_(80), height_(24) {}
+  WindowChange() : sigwinch_handler_(NULL), width_(80), height_(24) {}
 
   // Update geometry and send SIGWINCH.
   void Update(int width, int height) {
@@ -135,7 +134,7 @@ class WindowChange : public PepperPOSIX::Signal {
 
 class DevURandom : public PepperPOSIX::Reader {
  public:
-  DevURandom() : Reader(NULL) {
+  DevURandom() {
     nacl_interface_query(NACL_IRT_RANDOM_v0_1, &random_, sizeof(random_));
   }
 

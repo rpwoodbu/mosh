@@ -42,7 +42,7 @@ namespace PepperPOSIX {
 class UDP : public File {
  public:
   // UDP constructs with a Target, from Selector::GetTarget().
-  UDP(Target *target);
+  UDP();
   virtual ~UDP();
 
   // Receive replaces recvmsg(); see its documentation for usage.
@@ -74,10 +74,6 @@ class UDP : public File {
 // StubUDP is an instantiatable stubbed subclass of UDP for debugging.
 class StubUDP : public UDP {
  public:
-  // StubUDP constructs with a Target, from Selector::GetTarget().
-  StubUDP(Target *target) : UDP(target) {}
-  virtual ~StubUDP() {}
-
   // Bind replaces bind().
   virtual int Bind(const PP_NetAddress_IPv4 &address);
 

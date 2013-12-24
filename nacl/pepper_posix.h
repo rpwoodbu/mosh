@@ -36,11 +36,16 @@ namespace PepperPOSIX {
 // Abstract class representing a POSIX file.
 class File {
  public:
-  File(Target *target) : target_(target) {}
+  File() : target_(NULL) {}
   virtual ~File() {};
 
   virtual int Close() { return 0; }
-  int fd() { return target_->id(); }
+  int fd() {
+    if (target_ == NULL) {
+      return -1;
+    }
+    return target_->id();
+  }
 
   Target *target_;
 
@@ -53,16 +58,12 @@ class File {
 // Abstract class defining a file that is read-only.
 class Reader : public File {
  public:
-  Reader(Target *target) : File(target) {}
-  virtual ~Reader() {}
   virtual ssize_t Read(void *buf, size_t count) = 0;
 };
 
 // Abstract class defining a file that is write-only.
 class Writer : public File {
  public:
-  Writer(Target *target) : File(target) {}
-  virtual ~Writer() {}
   virtual ssize_t Write(const void *buf, size_t count) = 0;
 };
 
@@ -71,8 +72,6 @@ class Writer : public File {
 // will get called when there is.
 class Signal : public File {
  public:
-  Signal(Target *target) : File(target) {}
-  virtual ~Signal() {}
   // Implement this to handle a signal. It will be called from PSelect. It is
   // the responsibility of the implementer to track what signals are
   // outstanding. Call target_->Update(false) from this method when there are
@@ -88,8 +87,7 @@ class POSIX {
  public:
   // Provide implementations of Reader and Writer which emulate STDIN, STDOUT,
   // and STDERR. Provide an implementation of Signal to handle signals, which
-  // will be called from PSelect(). Construct them with NULL targets; this
-  // constructor will generate targets for them.
+  // will be called from PSelect().
   //
   // Set any of these to NULL if not used. Takes ownership of all.
   POSIX(const pp::InstanceHandle &instance_handle,
@@ -119,13 +117,13 @@ class POSIX {
   int AddFile(File *file);
 
  private:
+  // Returns the next available file descriptor.
+  int NextFileDescriptor();
+
   // Map of file descriptors and the File objects they represent.
   ::std::map<int, File *> files_;
   Selector selector_;
   const pp::InstanceHandle &instance_handle_;
-
-  // Returns the next available file descriptor.
-  int NextFileDescriptor_();
 
   // Disable copy and assignment.
   POSIX(const POSIX &);

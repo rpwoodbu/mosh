@@ -38,7 +38,7 @@ void DestroyMessage(struct ::msghdr *message) {
   delete message;
 }
 
-UDP::UDP(Target *target) : File(target) {
+UDP::UDP() {
   pthread_mutex_init(&packets_lock_, NULL);
 }
 

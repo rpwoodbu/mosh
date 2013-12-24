@@ -32,7 +32,7 @@ namespace PepperPOSIX {
 class NativeUDP : public UDP {
  public:
   // NativeUDP constructs with a Target, from Selector::GetTarget().
-  NativeUDP(const pp::InstanceHandle &instance_handle, Target *target);
+  NativeUDP(const pp::InstanceHandle &instance_handle);
   virtual ~NativeUDP();
 
   // Bind replaces bind().

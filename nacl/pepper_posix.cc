@@ -97,7 +97,7 @@ ssize_t POSIX::Write(int fd, const void *buf, size_t count) {
   return writer->Write(buf, count);
 }
 
-int POSIX::NextFileDescriptor_() {
+int POSIX::NextFileDescriptor() {
   for (int fd = 0; ; ++fd) {
     if (files_.count(fd) == 0) {
       return fd;
@@ -111,8 +111,10 @@ int POSIX::Socket(int domain, int type, int protocol) {
     return -1;
   }
 
-  int fd = NextFileDescriptor_();
-  files_[fd] = new NativeUDP(instance_handle_, selector_.NewTarget(fd));
+  NativeUDP *udp = new NativeUDP(instance_handle_);
+  int fd = NextFileDescriptor();
+  udp->target_ = selector_.NewTarget(fd);
+  files_[fd] = udp;
   return fd;
 }
 
@@ -233,7 +235,7 @@ ssize_t POSIX::SendTo(int sockfd, const void *buf, size_t len, int flags,
 }
 
 int POSIX::AddFile(File *file) {
-  int fd = NextFileDescriptor_();
+  int fd = NextFileDescriptor();
   files_[fd] = file;
   file->target_ = selector_.NewTarget(fd);
   return fd;

@@ -30,8 +30,8 @@
 namespace PepperPOSIX {
 
 NativeUDP::NativeUDP(
-    const pp::InstanceHandle &instance_handle, Target *target) :
-    UDP(target), instance_handle_(instance_handle), factory_(this) {
+    const pp::InstanceHandle &instance_handle) :
+    instance_handle_(instance_handle), factory_(this) {
   socket_ = new pp::UDPSocket(instance_handle);
   bound_ = false;
 }
