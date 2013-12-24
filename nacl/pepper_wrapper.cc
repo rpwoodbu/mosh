@@ -172,6 +172,11 @@ class DevURandom : public PepperPOSIX::Reader {
   struct nacl_irt_random random_;
 };
 
+// DevURandom factory for registration with PepperPOSIX::POSIX.
+PepperPOSIX::File *DevURandomFactory() {
+  return new DevURandom();
+}
+
 class MoshClientInstance : public pp::Instance {
  public:
   explicit MoshClientInstance(PP_Instance instance) :
@@ -283,6 +288,7 @@ class MoshClientInstance : public pp::Instance {
     window_change_ = new WindowChange();
     posix_ = new PepperPOSIX::POSIX(
         instance_handle_, keyboard_, terminal, error_log, window_change_);
+    posix_->RegisterFile("/dev/urandom", DevURandomFactory);
 
     // Mosh will launch via the resolution callback (see above).
     return true;
@@ -463,14 +469,22 @@ int ioctl(int d, long unsigned int request, ...) {
 //
 
 FILE *fopen(const char *path, const char *mode) {
-  string pathname(path);
-  if (pathname != "/dev/urandom") {
-    errno = EIO;
+  int flags = 0;
+  if (mode[1] == '+') {
+    flags = O_RDWR;
+  } else if (mode[0] == 'r') {
+    flags = O_RDONLY;
+  } else if (mode[0] == 'w' || mode[0] == 'a') {
+    flags = O_WRONLY;
+  } else {
+    errno = EINVAL;
     return NULL;
   }
+
   FILE *stream = new FILE;
   memset(stream, 0, sizeof(*stream));
-  stream->_fileno = instance->posix_->AddFile(new DevURandom);
+  // TODO: Consider the mode param of open().
+  stream->_fileno = open(path, flags);
   return stream;
 }
 
@@ -481,7 +495,7 @@ int fprintf(FILE *stream, const char *format, ...) {
   int size = vsnprintf(buf, sizeof(buf), format, argp);
   va_end(argp);
   if (instance != NULL) {
-    return instance->posix_->Write(fileno(stream), buf, size);
+    return write(fileno(stream), buf, size);
   }
   errno = EIO;
   return -1;
@@ -503,6 +517,12 @@ int fclose(FILE *stream) {
 //
 // Wrap all unistd functions to communicate via the Pepper API.
 //
+
+// There is a pseudo-overload that includes a third param |mode_t|.
+int open(const char *pathname, int flags, ...) {
+  // TODO: For now, ignoring |mode_t| param.
+  return instance->posix_->Open(pathname, flags, 0);
+}
 
 ssize_t read(int fd, void *buf, size_t count) {
   return instance->posix_->Read(fd, buf, count);

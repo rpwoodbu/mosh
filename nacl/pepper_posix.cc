@@ -56,6 +56,22 @@ POSIX::~POSIX() {
   }
 }
 
+int POSIX::Open(const char *pathname, int flags, mode_t mode) {
+  ::std::map<string, File *(*)()>::iterator factories_iter =
+      factories_.find(string(pathname));
+  if (factories_iter == factories_.end()) {
+    errno = EACCES;
+    return -1;
+  }
+  File *file = factories_iter->second();
+  // TODO: Error out if |file|'s type doesn't match |flags| (i.e., Reader
+  // cannot be O_WRONLY).
+  int fd = NextFileDescriptor();
+  files_[fd] = file;
+  file->target_ = selector_.NewTarget(fd);
+  return fd;
+}
+
 int POSIX::Close(int fd) {
   if (files_.count(fd) == 0) {
     errno = EBADF;
@@ -232,13 +248,6 @@ ssize_t POSIX::SendTo(int sockfd, const void *buf, size_t len, int flags,
   MakeAddress(dest_addr, addrlen, &addr);
 
   return udp->Send(buffer, flags, addr);
-}
-
-int POSIX::AddFile(File *file) {
-  int fd = NextFileDescriptor();
-  files_[fd] = file;
-  file->target_ = selector_.NewTarget(fd);
-  return fd;
 }
 
 } // namespace PepperPOSIX

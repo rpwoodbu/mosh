@@ -24,12 +24,16 @@
 #include "pepper_posix_selector.h"
 
 #include <map>
+#include <string>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
 #include "ppapi/c/ppb_net_address.h"
 #include "ppapi/cpp/instance_handle.h"
+
+using ::std::map;
+using ::std::string;
 
 namespace PepperPOSIX {
 
@@ -94,6 +98,8 @@ class POSIX {
       Reader *std_in, Writer *std_out, Writer *std_err, Signal *signal);
   ~POSIX();
 
+  int Open(const char *pathname, int flags, mode_t mode);
+
   ssize_t Read(int fd, void *buf, size_t count);
 
   ssize_t Write(int fd, const void *buf, size_t count);
@@ -112,16 +118,20 @@ class POSIX {
   ssize_t SendTo(int sockfd, const void *buf, size_t len, int flags,
       const struct sockaddr *dest_addr, socklen_t addrlen);
 
-  // Add an arbitrary File to be served. Returns a file descriptor. Takes
-  // ownership of file.
-  int AddFile(File *file);
+  // Register a filename and File factory to be used when that file is
+  // opened.
+  void RegisterFile(string filename, File *(*factory)()) {
+    factories_[filename] = factory;
+  }
 
  private:
   // Returns the next available file descriptor.
   int NextFileDescriptor();
 
   // Map of file descriptors and the File objects they represent.
-  ::std::map<int, File *> files_;
+  map<int, File *> files_;
+  // Map of registered files and their File factories.
+  map<string, File *(*)()> factories_;
   Selector selector_;
   const pp::InstanceHandle &instance_handle_;
 
