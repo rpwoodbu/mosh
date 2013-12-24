@@ -101,6 +101,18 @@ class Keyboard : public PepperPOSIX::Reader {
   pthread_mutex_t keypresses_lock_;
 };
 
+// Implements the plumbing to get output to the terminal.
+class Terminal : public PepperPOSIX::Writer {
+ public:
+  Terminal(MoshClientInstance *instance) : instance_(instance) {}
+
+  // This has to be defined below MoshClientInstance due to dependence on it.
+  virtual ssize_t Write(const void *buf, size_t count);
+
+ private:
+  MoshClientInstance *instance_;
+};
+
 // Implements the plumbing to get SIGWINCH to Mosh. A tiny amount of plumbing
 // is in MoshClientInstance::HandleMessage();
 class WindowChange : public PepperPOSIX::Signal {
@@ -254,9 +266,10 @@ class MoshClientInstance : public pp::Instance {
 
     // Setup communications.
     keyboard_ = new Keyboard();
+    Terminal *terminal = new Terminal(this);
     window_change_ = new WindowChange();
     posix_ = new PepperPOSIX::POSIX(
-        instance_handle_, keyboard_, NULL, NULL, window_change_);
+        instance_handle_, keyboard_, terminal, NULL, window_change_);
 
     // Mosh will launch via the resolution callback (see above).
     return true;
@@ -314,6 +327,12 @@ class MoshClientInstance : public pp::Instance {
 
 // Initialize static data for MoshClientInstance.
 int MoshClientInstance::num_instances_ = 0;
+
+ssize_t Terminal::Write(const void *buf, size_t count) {
+ string s((const char *)buf, count);
+ instance_->Output(MoshClientInstance::TYPE_DISPLAY, s);
+ return count;
+}
 
 // Logging function in global namespace for convenience.
 void Log(const char *format, ...) {
@@ -470,15 +489,7 @@ ssize_t read(int fd, void *buf, size_t count) {
 }
 
 ssize_t write(int fd, const void *buf, size_t count) {
-  if (fd == STDOUT_FILENO) {
-    string s((const char *)buf, count);
-    instance->Output(MoshClientInstance::TYPE_DISPLAY, s);
-    return count;
-  }
-
-  Log("write(%d, ...): Unexpected write.", fd);
-  errno = EIO;
-  return -1;
+  return instance->posix_->Write(fd, buf, count);
 }
 
 // printf is used rarely (only once at the time of this writing).
