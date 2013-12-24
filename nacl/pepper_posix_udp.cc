@@ -99,12 +99,6 @@ void UDP::AddPacket(struct ::msghdr *message) {
   target_->Update(true);
 }
 
-int UDP::Close() {
-  // TODO: Implement.
-  fprintf(stderr, "UDP::Close(): not implemented\n");
-  return 0;
-}
-
 ssize_t StubUDP::Send(
     const vector<char> &buf, int flags, const PP_NetAddress_IPv4 &addr) {
   fprintf(stderr, "StubUDP::Send(): size=%d\n", buf.size());

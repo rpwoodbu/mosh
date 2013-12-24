@@ -56,9 +56,6 @@ class UDP : public File {
     const vector<char> &buf, int flags,
     const PP_NetAddress_IPv4 &address) = 0;
 
-  // Close replaces close().
-  virtual int Close();
-
  protected:
   // AddPacket is used by the subclass to add a packet to the incoming queue.
   // This method can be called from another thread than the one used to call

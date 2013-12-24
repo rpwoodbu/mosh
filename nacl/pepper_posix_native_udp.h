@@ -43,6 +43,9 @@ class NativeUDP : public UDP {
       const vector<char> &buf, int flags,
       const PP_NetAddress_IPv4 &address);
 
+  // Close replaces close().
+  virtual int Close();
+
  private:
   void StartReceive(int32_t unused);
   void Received(int32_t result, const pp::NetAddress &address);

@@ -133,4 +133,12 @@ void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
   StartReceive(0);
 }
 
+// Close the socket.
+int NativeUDP::Close() {
+  // Destroying socket_ is the same as closing it.
+  delete socket_;
+  socket_ = NULL;
+  return 0;
+}
+
 } // namespace PepperPOSIX

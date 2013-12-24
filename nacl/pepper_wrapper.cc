@@ -454,7 +454,6 @@ int fileno(FILE *stream) {
 }
 
 int fclose(FILE *stream) {
-  Log("fclose(): fileno: %d", fileno(stream));
   int result = close(fileno(stream));
   if (result == 0) {
     delete stream;
