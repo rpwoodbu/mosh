@@ -16,6 +16,7 @@
 OUTDIR:=app
 PROJECT:=$(OUTDIR)/mosh_client
 CXX_SOURCES:=\
+	mosh_nacl.cc \
 	pepper_posix.cc \
 	pepper_posix_native_udp.cc \
 	pepper_posix_selector.cc \
@@ -26,7 +27,8 @@ CXX_HEADERS:=\
 	pepper_posix.h \
 	pepper_posix_selector.h \
 	pepper_posix_native_udp.h \
-	pepper_posix_udp.h
+	pepper_posix_udp.h \
+	pepper_wrapper.h
 
 OBJECTS:=\
 	ARCH/src/frontend/mosh-client-nacl.o \
