@@ -46,40 +46,50 @@ int setrlimit(int resource, const struct rlimit *rlim) {
   return 0;
 }
 
+// sigprocmask() isn't meaningful in NaCl; stubbing out.
 int sigprocmask(int how, const sigset_t *set, sigset_t *oldset) {
+  Log("sigprocmask(%d, ...)", how);
   return 0;
 }
 
 // kill() is used to send a SIGSTOP on Ctrl-Z, which is not useful for NaCl.
+// This shouldn't be called, but it is annoying to see a linker warning about
+// it not being implemented.
 int kill(pid_t pid, int sig) {
+  Log("kill(%d, %d)", pid, sig);
   return 0;
 }
 
 // getpid() isn't actually called, but it is annoying to see a linker warning
 // about it not being implemented.
 pid_t getpid(void) {
+  Log("getpid()");
   return 0;
 }
 
 // TODO: Determine if there's a better way than stubbing these out.
 char *setlocale(int category, const char *locale) {
+  Log("setlocale(%d, \"%s\")", category, locale);
   return "NaCl";
 }
 char *nl_langinfo(nl_item item) {
   switch (item) {
     case CODESET:
+      Log("nl_langinfo(CODESET)");
       return "UTF-8";
     default:
+      Log("nl_langinfo(%d)", item);
       return "Error";
   }
 }
 
 // We don't really care about terminal attributes.
 int tcgetattr(int fd, struct termios *termios_p) {
+  Log("tcgetattr(%d, ...)", fd);
   return 0;
 }
-
-int tcsetattr(int fd, int optional_sctions, const struct termios *termios_p) {
+int tcsetattr(int fd, int optional_actions, const struct termios *termios_p) {
+  Log("tcsetattr(%d, %d, ...)", fd, optional_actions);
   return 0;
 }
 
@@ -165,9 +175,10 @@ int socket(int domain, int type, int protocol) {
   return GetPOSIX()->Socket(domain, type, protocol);
 }
 
+// Most socket options aren't supported by PPAPI, so just stubbing out.
 int setsockopt(int sockfd, int level, int optname,
     const void *optval, socklen_t optlen) {
-  Log("setsockopt stub called; fd=%d", sockfd);
+  Log("setsockopt(%d, %s, %s, ...", sockfd, level, optname);
   return 0;
 }
 
