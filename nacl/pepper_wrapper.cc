@@ -178,7 +178,7 @@ int socket(int domain, int type, int protocol) {
 // Most socket options aren't supported by PPAPI, so just stubbing out.
 int setsockopt(int sockfd, int level, int optname,
     const void *optval, socklen_t optlen) {
-  Log("setsockopt(%d, %s, %s, ...", sockfd, level, optname);
+  Log("setsockopt(%d, %d, %d, ...", sockfd, level, optname);
   return 0;
 }
 
