@@ -388,7 +388,11 @@ int sigaction(int signum, const struct sigaction *act,
   return 0;
 }
 
+#ifdef USE_NEWLIB
+int ioctl(int d, int request, ...) {
+#else
 int ioctl(int d, long unsigned int request, ...) {
+#endif
   if (d != STDIN_FILENO || request != TIOCGWINSZ) {
     Log("ioctl(%d, %u, ...): Got unexpected call", d, request);
     errno = EPROTO;

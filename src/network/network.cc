@@ -54,6 +54,14 @@
 #define MSG_DONTWAIT MSG_NONBLOCK
 #endif
 
+#ifndef u_int32_t
+typedef uint32_t u_int32_t;
+#endif
+#ifndef _ALIGN
+// Stub it out for now.
+#define _ALIGN(n) (n)
+#endif
+
 using namespace std;
 using namespace Network;
 using namespace Crypto;

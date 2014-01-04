@@ -36,10 +36,13 @@ extern "C" {
 // needs to return an error at least, otherwise the thread cannot be created.
 // This does not seem to be an issue on x86_64.
 int getrlimit(int resource, struct rlimit *rlim) {
+// TODO: Determine if NEWLIB doesn't have this problem on 32-bit.
+#ifndef USE_NEWLIB
   if (resource == RLIMIT_STACK) {
     errno = EAGAIN;
     return -1;
   }
+#endif
   return 0;
 }
 int setrlimit(int resource, const struct rlimit *rlim) {
@@ -68,6 +71,7 @@ pid_t getpid(void) {
 }
 
 // TODO: Determine if there's a better way than stubbing these out.
+/*
 char *setlocale(int category, const char *locale) {
   Log("setlocale(%d, \"%s\")", category, locale);
   return "NaCl";
@@ -82,6 +86,7 @@ char *nl_langinfo(nl_item item) {
       return "Error";
   }
 }
+*/
 
 // We don't really care about terminal attributes.
 int tcgetattr(int fd, struct termios *termios_p) {
@@ -113,7 +118,11 @@ FILE *fopen(const char *path, const char *mode) {
   FILE *stream = new FILE;
   memset(stream, 0, sizeof(*stream));
   // TODO: Consider the mode param of open().
+#ifdef USE_NEWLIB
+  stream->_file = open(path, flags);
+#else
   stream->_fileno = open(path, flags);
+#endif
   return stream;
 }
 
@@ -127,7 +136,11 @@ int fprintf(FILE *stream, const char *format, ...) {
 }
 
 int fileno(FILE *stream) {
+#ifdef USE_NEWLIB
+  return stream->_file;
+#else
   return stream->_fileno;
+#endif
 }
 
 int fclose(FILE *stream) {

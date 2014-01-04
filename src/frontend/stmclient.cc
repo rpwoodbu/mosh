@@ -106,7 +106,9 @@ void STMClient::init( void )
   }
 #endif /* HAVE_IUTF8 */
 
+#ifdef cfmakeraw
   cfmakeraw( &raw_termios );
+#endif
 
   if ( tcsetattr( STDIN_FILENO, TCSANOW, &raw_termios ) < 0 ) {
       perror( "tcsetattr" );

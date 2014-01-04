@@ -29,6 +29,7 @@
 #include <pthread.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 
 #include "ppapi/c/ppb_net_address.h"
 

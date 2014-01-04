@@ -37,10 +37,22 @@
 #include <errno.h>
 #include <signal.h>
 #include <sys/select.h>
+#include <sys/time.h>
 #include <assert.h>
 
 #include "fatal_assert.h"
 #include "timestamp.h"
+
+#ifndef pselect
+#include <sys/signal.h>
+extern "C" {
+extern int pselect (int __nfds, fd_set *__restrict __readfds,
+    fd_set *__restrict __writefds,
+    fd_set *__restrict __exceptfds,
+    const struct timespec *__restrict __timeout,
+    const sigset_t *__restrict __sigmask);
+}
+#endif
 
 /* Convenience wrapper for pselect(2).
 

@@ -22,7 +22,7 @@
 NACL_SDK_ZIP="nacl_sdk.zip"
 NACL_SDK_URL="http://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/${NACL_SDK_ZIP}"
 NACL_SDK_DIR="nacl_sdk"
-NACL_SDK_VERSION="pepper_31"
+NACL_SDK_VERSION="pepper_32"
 
 DEPOT_TOOLS_URL="https://chromium.googlesource.com/chromium/tools/depot_tools.git"
 DEPOT_TOOLS_DIR="depot_tools"
@@ -109,14 +109,14 @@ PROTO_PATH="$(pwd)/build/${PROTOBUF_DIR}/src"
 export PATH="${PROTO_PATH}:${PATH}"
 export LD_LIBRARY_PATH="${PROTO_PATH}/.libs"
 
-export NACL_GLIBC="1"
+#export NACL_GLIBC="1"
 
 make clean
 for arch in x86_64 i686; do ( # Do all this in a separate subshell.
   export NACL_ARCH="${arch}"
   echo "Building packages in NaCl Ports..."
   pushd "${NACL_PORTS}/src" > /dev/null
-  make zlib openssl ncurses protobuf
+  make ncurses zlib openssl protobuf
   popd > /dev/null
 
   echo "Updating submodules..."
@@ -136,6 +136,7 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
   . ${NACL_PORTS}/src/build_tools/nacl_env.sh
   export NACLPORTS_LIBDIR=${NACL_TOOLCHAIN_ROOT}/${NACL_CROSS_PREFIX}/usr/lib
   eval $(${NACL_PORTS}/src/build_tools/nacl_env.sh --print)
+  ${NACL_PORTS}/src/build_tools/nacl_env.sh --print
 
   if [[ ${FAST} != "fast" ]]; then
     pushd .. > /dev/null
@@ -150,8 +151,9 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
     pushd "${build_dir}" > /dev/null
     echo "Configuring..."
     # Built-in functions cannot be overridden.
-    export CXXFLAGS="${CXXFLAGS} -fno-builtin"
-    configure_options="--host=${arch} --enable-client=yes --enable-server=no"
+    export CXXFLAGS="${CXXFLAGS} -fno-builtin -I${NACL_TOOLCHAIN_ROOT}/${arch}-nacl/usr/include/glibc-compat -DHAVE_FORKPTY -DHAVE_SYS_UIO_H"
+    export LDFLAGS="${LDFLAGS} -Xlinker --unresolved-symbols=ignore-all"
+    configure_options="--host=${arch} --enable-client=yes --enable-server=no --disable-silent-rules"
     if [[ "${arch}" == "i686" ]]; then
       # The i686 build doesn't seem to have stack protection, even though
       # "configure" finds it, so disabling hardening. :(

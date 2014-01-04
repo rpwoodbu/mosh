@@ -102,6 +102,7 @@ int main( int argc, char *argv[] )
   fatal_assert( argc > 0 );
 
   /* Get arguments */
+  /*
   int opt;
   while ( (opt = getopt( argc, argv, "c" )) != -1 ) {
     switch ( opt ) {
@@ -116,9 +117,11 @@ int main( int argc, char *argv[] )
     }
   }
 
+  */
   char *ip, *desired_port;
   int port;
 
+  /*
   if ( argc - optind != 2 ) {
     usage( argv[ 0 ] );
     exit( 1 );
@@ -126,6 +129,9 @@ int main( int argc, char *argv[] )
 
   ip = argv[ optind ];
   desired_port = argv[ optind + 1 ];
+  */
+  ip = argv[1];
+  desired_port = argv[2];
 
   /* Sanity-check arguments */
   if ( ip
