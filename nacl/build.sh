@@ -136,7 +136,6 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
   . ${NACL_PORTS}/src/build_tools/nacl_env.sh
   export NACLPORTS_LIBDIR=${NACL_TOOLCHAIN_ROOT}/${NACL_CROSS_PREFIX}/usr/lib
   eval $(${NACL_PORTS}/src/build_tools/nacl_env.sh --print)
-  ${NACL_PORTS}/src/build_tools/nacl_env.sh --print
 
   if [[ ${FAST} != "fast" ]]; then
     pushd .. > /dev/null
