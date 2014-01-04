@@ -316,7 +316,9 @@ class MoshClientInstance : public pp::Instance {
 
     setenv("TERM", "xterm-256color", 1);
     char *argv[] = { "mosh-client", thiz->addr_, thiz->port_ };
+    thiz->Log("Mosh(): Calling mosh_main");
     mosh_main(sizeof(argv) / sizeof(argv[0]), argv);
+    thiz->Log("Mosh(): mosh_main returned");
     return 0;
   }
 

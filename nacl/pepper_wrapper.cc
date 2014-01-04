@@ -70,13 +70,16 @@ pid_t getpid(void) {
   return 0;
 }
 
-// Stub these out if we're using glibc, as locale support basically doesn't
-// exist. This means that UTF-8 doesn't work with glibc.
+// Stub these out. In the NaCl glibc, locale support is terrible (and we don't
+// get UTF-8 because of it). In newlib, there seems to be some crashiness with
+// nl_langinfo(). This will do for both cases (although no UTF-8 in glibc can
+// cause a bit of a mess).
 #ifndef USE_NEWLIB
 char *setlocale(int category, const char *locale) {
   Log("setlocale(%d, \"%s\")", category, locale);
   return "NaCl";
 }
+#endif
 char *nl_langinfo(nl_item item) {
   switch (item) {
     case CODESET:
@@ -87,7 +90,6 @@ char *nl_langinfo(nl_item item) {
       return "Error";
   }
 }
-#endif
 
 // We don't really care about terminal attributes.
 int tcgetattr(int fd, struct termios *termios_p) {
