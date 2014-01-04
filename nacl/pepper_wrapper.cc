@@ -32,11 +32,11 @@
 extern "C" {
 
 // These are used to avoid CORE dumps. Should be OK to stub them out. However,
-// it seems that on x86_32, pthread_create() calls this with RLIMIT_STACK. It
-// needs to return an error at least, otherwise the thread cannot be created.
-// This does not seem to be an issue on x86_64.
+// it seems that on x86_32 with glibc, pthread_create() calls this with
+// RLIMIT_STACK. It needs to return an error at least, otherwise the thread
+// cannot be created. This does not seem to be an issue on x86_64 nor with
+// newlib (which doesn't have RLIMIT_STACK in the headers).
 int getrlimit(int resource, struct rlimit *rlim) {
-// TODO: Determine if NEWLIB doesn't have this problem on 32-bit.
 #ifndef USE_NEWLIB
   if (resource == RLIMIT_STACK) {
     errno = EAGAIN;
@@ -70,8 +70,9 @@ pid_t getpid(void) {
   return 0;
 }
 
-// TODO: Determine if there's a better way than stubbing these out.
-/*
+// Stub these out if we're using glibc, as locale support basically doesn't
+// exist. This means that UTF-8 doesn't work with glibc.
+#ifndef USE_NEWLIB
 char *setlocale(int category, const char *locale) {
   Log("setlocale(%d, \"%s\")", category, locale);
   return "NaCl";
@@ -86,7 +87,7 @@ char *nl_langinfo(nl_item item) {
       return "Error";
   }
 }
-*/
+#endif
 
 // We don't really care about terminal attributes.
 int tcgetattr(int fd, struct termios *termios_p) {
