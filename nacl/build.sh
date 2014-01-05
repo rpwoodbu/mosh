@@ -34,6 +34,8 @@ PROTOBUF_DIR="protobuf-2.5.0"
 PROTOBUF_TAR="${PROTOBUF_DIR}.tar.bz2"
 PROTOBUF_URL="https://protobuf.googlecode.com/files/${PROTOBUF_TAR}"
 
+INCLUDE_OVERRIDE="$(pwd)/include"
+
 FAST=""
 if [[ $# -gt 0 ]]; then
   FAST="$1"
@@ -145,12 +147,25 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
     fi
     popd > /dev/null # ..
 
+    # Make a symlink into the usual include location so that the "override"
+    # assert.h can find it. It changes for each port, and in unexpected ways,
+    # which complicates things.
+    include_arch="${arch}"
+    if [[ "${include_arch}" == "i686" ]]; then
+      include_arch="x86_64" # Yes, really.
+    fi
+    rm -f build/include
+    ln -s "${NACL_TOOLCHAIN_ROOT}/${include_arch}-nacl/include" build/include
+
     build_dir="build/${NACL_ARCH}"
     mkdir -p "${build_dir}"
     pushd "${build_dir}" > /dev/null
-    echo "Configuring..."
     # Built-in functions cannot be overridden.
-    export CXXFLAGS="${CXXFLAGS} -fno-builtin -I${NACL_TOOLCHAIN_ROOT}/${arch}-nacl/usr/include/glibc-compat -DHAVE_FORKPTY -DHAVE_SYS_UIO_H"
+    export CXXFLAGS="${CXXFLAGS} -fno-builtin"
+    if [[ "${NACL_GLIBC}" != "1" ]]; then
+      # Do things specific to newlib.
+      export CXXFLAGS="${CXXFLAGS} -I${INCLUDE_OVERRIDE} -I${NACL_TOOLCHAIN_ROOT}/${arch}-nacl/usr/include/glibc-compat -DHAVE_FORKPTY -DHAVE_SYS_UIO_H"
+    fi
     export LDFLAGS="${LDFLAGS} -Xlinker --unresolved-symbols=ignore-all"
     configure_options="--host=${arch} --enable-client=yes --enable-server=no --disable-silent-rules"
     if [[ "${arch}" == "i686" ]]; then
@@ -158,10 +173,15 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
       # "configure" finds it, so disabling hardening. :(
       configure_options="${configure_options} --disable-hardening"
     fi
+    echo "Configuring..."
     ../../../configure ${configure_options}
     echo "Building Mosh with NaCl compiler..."
     make clean
-    make || echo "*** Ignore error IFF it was the linking step. ***"
+    if [[ "${NACL_GLIBC}" == "1" ]]; then
+      make || echo "*** Ignore error IFF it was the linking step. ***"
+    else
+      make
+    fi
     popd > /dev/null # ${build_dir}
   fi
 

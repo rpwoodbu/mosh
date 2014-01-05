@@ -65,7 +65,7 @@ long int myatoi( const char *str )
 AlignedBuffer::AlignedBuffer( size_t len, const char *data )
   : m_len( len ), m_allocated( NULL ), m_data( NULL )
 {
-#if defined(posix_memalign) && defined(HAVE_POSIX_MEMALIGN)
+#if defined(HAVE_POSIX_MEMALIGN)
   if ( ( 0 != posix_memalign( &m_allocated, 16, len ) )
       || ( m_allocated == NULL ) ) {
     throw std::bad_alloc();
@@ -290,34 +290,32 @@ Message Session::decrypt( string ciphertext )
   return ret;
 }
 
-// NaCl doesn't use this; stub out.
-//
-//static rlim_t saved_core_rlimit;
-//
-///* Disable dumping core, as a precaution to avoid saving sensitive data
-//   to disk. */
+static rlim_t saved_core_rlimit;
+
+/* Disable dumping core, as a precaution to avoid saving sensitive data
+   to disk. */
 void Crypto::disable_dumping_core( void ) {
-//  struct rlimit limit;
-//  if ( 0 != getrlimit( RLIMIT_CORE, &limit ) ) {
-//    /* We don't throw CryptoException because this is called very early
-//       in main(), outside of 'try'. */
-//    perror( "getrlimit(RLIMIT_CORE)" );
-//    exit( 1 );
-//  }
-//
-//  saved_core_rlimit = limit.rlim_cur;
-//  limit.rlim_cur = 0;
-//  if ( 0 != setrlimit( RLIMIT_CORE, &limit ) ) {
-//    perror( "setrlimit(RLIMIT_CORE)" );
-//    exit( 1 );
-//  }
+  struct rlimit limit;
+  if ( 0 != getrlimit( RLIMIT_CORE, &limit ) ) {
+    /* We don't throw CryptoException because this is called very early
+       in main(), outside of 'try'. */
+    perror( "getrlimit(RLIMIT_CORE)" );
+    exit( 1 );
+  }
+
+  saved_core_rlimit = limit.rlim_cur;
+  limit.rlim_cur = 0;
+  if ( 0 != setrlimit( RLIMIT_CORE, &limit ) ) {
+    perror( "setrlimit(RLIMIT_CORE)" );
+    exit( 1 );
+  }
 }
-//
+
 void Crypto::reenable_dumping_core( void ) {
-//  /* Silent failure is safe. */
-//  struct rlimit limit;
-//  if ( 0 == getrlimit( RLIMIT_CORE, &limit ) ) {
-//    limit.rlim_cur = saved_core_rlimit;
-//    setrlimit( RLIMIT_CORE, &limit );
-//  }
+  /* Silent failure is safe. */
+  struct rlimit limit;
+  if ( 0 == getrlimit( RLIMIT_CORE, &limit ) ) {
+    limit.rlim_cur = saved_core_rlimit;
+    setrlimit( RLIMIT_CORE, &limit );
+  }
 }

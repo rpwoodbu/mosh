@@ -101,6 +101,15 @@ int tcsetattr(int fd, int optional_actions, const struct termios *termios_p) {
   return 0;
 }
 
+// The getopt() in newlib crashes. We don't really need it anyway. Stub it out.
+// getopt() is redirected to mygetopt() using the magic include file.
+#ifdef USE_NEWLIB
+int mygetopt(int argc, char * const argv[], const char *optstring) {
+  optind = 1;
+  return -1;
+}
+#endif
+
 //
 // Wrap fopen() and friends to capture access to stderr and /dev/urandom.
 //
