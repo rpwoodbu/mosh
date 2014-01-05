@@ -39,11 +39,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 </head>
 <body>
   <div id="setup">
+    <strong>NB: New version (2014-01-05) may be buggy!</strong>
+    Details in the changelog below.
+    Please <a target="_blank" href="mailto:rpwoodbu@mybox.org">report bugs</a>
+    ASAP.
     <form id="args">
       <table>
         <tr>
           <td>Hostname or IP address:</td>
-          <td><input id="addr" type="text"></td>
+          <td><input id="addr" type="text" autofocus></td>
         </tr>
         <tr>
           <td>Port number:</td>
@@ -68,36 +72,42 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     <h3>Known issues</h3>
     <p>
     <ul>
-      <li>Bad interaction with tmux and windowed areas.
       <li>Too easy to close the window by mistake.
       <li>x86_32 port is built with --disable-hardening, which reduces
         security somewhat.
-      <li>Unicode doesn't work.
+      <li>Unicode input doesn't work (rendering does).
     </ul>
 
     <h3>Changelog</h3>
     <ul>
-      <li>0.0.0.11 - Improved error reporting. stderr now goes to the terminal
-        (just like the real mosh-client), and also the Javascript console. If
-        in doubt, check the Javascript console, as the terminal may obscure
-        errors.
-      <li>0.0.0.10 - Now permits hostnames as well as IP addresses. Crypto
-        randomness is now actually random. Tested successfully on Linux and
-        MacOS.
-      <li>0.0.0.9 - Fix for x86_32 failing to start. Tested on Linux; not yet
-        tested on MacOS.
-      <li>0.0.0.8 - Build against pepper_31 and newer naclports. Eliminate
-        spurious new browser tab on connect.
-      <li>0.0.0.7 - Add support for i686 (needed for 32-bit Chrome, e.g.
-        MacOS).
-      <li>0.0.0.6 - Fix bug in readfrom() emulation which caused Mosh to
-        show a crypto error, rendering the session useless.
-      <li>0.0.0.5 - Clean up initial screen and add this info.
-      <li>0.0.0.4 - Big code refactor.
-      <li>0.0.0.3 - Fix bug in packet handling code which caused perceived
-        sluggishness.
-      <li>0.0.0.2 - Add application icon.
-      <li>0.0.0.1 - Initial working version.
+      <li>0.0.0.12 (2014-01-05) - Fix Unicode rendering (input still lacking).
+        This also fixes the bad interaction with tmux, as tmux uses Unicode
+        characters for drawing borders. This was accomplished by building
+        against newlib instead of glibc (long story). This could be the source
+        of new and exciting bugs. But besides fixing Unicode support, this
+        paves the way for ARM support, and ultimately using Portable Native
+        Client (PNaCl), which allows a single build to run on any architecture.
+        (PNaCl doesn't yet support C++ exceptions, but when it does, we're
+        ready.)
+      <li>0.0.0.11 (2013-12-23) - Improved error reporting. stderr now goes to
+        the terminal (just like the real mosh-client), and also the Javascript
+        console. If in doubt, check the Javascript console, as the terminal may
+        obscure errors.  <li>0.0.0.10 (2013-12-16) - Now permits hostnames as
+        well as IP addresses. Crypto randomness is now actually random. Tested
+        successfully on Linux and MacOS.  <li>0.0.0.9 (2013-12-15) - Fix for
+        x86_32 failing to start. Tested on Linux; not yet tested on MacOS.
+      <li>0.0.0.8 (2013-12-02) - Build against pepper_31 and newer naclports.
+        Eliminate spurious new browser tab on connect.
+      <li>0.0.0.7 (2013-11-30) - Add support for i686 (needed for 32-bit
+        Chrome, e.g.  MacOS).
+      <li>0.0.0.6 (2013-10-16) - Fix bug in readfrom() emulation which caused
+        Mosh to show a crypto error, rendering the session useless.
+      <li>0.0.0.5 (2013-10-15) - Clean up initial screen and add this info.
+      <li>0.0.0.4 (2013-10-14) - Big code refactor.
+      <li>0.0.0.3 (2013-10-08) - Fix bug in packet handling code which caused
+        perceived sluggishness.
+      <li>0.0.0.2 (2013-10-08) - Add application icon.
+      <li>0.0.0.1 (2013-10-07) - Initial working version.
 
   </div>
   <div id="terminal"></div>
