@@ -34,6 +34,10 @@ PROTOBUF_DIR="protobuf-2.5.0"
 PROTOBUF_TAR="${PROTOBUF_DIR}.tar.bz2"
 PROTOBUF_URL="https://protobuf.googlecode.com/files/${PROTOBUF_TAR}"
 
+LIBSSH_DIR="libssh-0.6.0"
+LIBSSH_TAR="${LIBSSH_DIR}.tar.xz"
+LIBSSH_URL="https://red.libssh.org/attachments/download/71/${LIBSSH_TAR}"
+
 INCLUDE_OVERRIDE="$(pwd)/include"
 
 FAST=""
@@ -104,18 +108,32 @@ if [[ ! -d "build/${PROTOBUF_DIR}" ]]; then
   wget "${PROTOBUF_URL}"
   tar -xjf "${PROTOBUF_TAR}"
   cd "${PROTOBUF_DIR}"
-  ./configure && make
+  ./configure
+  make
   popd > /dev/null
 fi
 PROTO_PATH="$(pwd)/build/${PROTOBUF_DIR}/src"
 export PATH="${PROTO_PATH}:${PATH}"
 export LD_LIBRARY_PATH="${PROTO_PATH}/.libs"
 
+# Get and patch (but not build) libssh.
+if [[ ! -d "build/${LIBSSH_DIR}" ]]; then
+  pushd "build" > /dev/null
+  if [[ ! -f "${LIBSSH_TAR}" ]]; then
+    wget "${LIBSSH_URL}"
+  fi
+  tar -xJf "${LIBSSH_TAR}"
+  cd "${LIBSSH_DIR}"
+  patch -p1 < ../../libssh.patch
+  popd > /dev/null
+fi
+
 #export NACL_GLIBC="1"
 
 make clean
 for arch in x86_64 i686; do ( # Do all this in a separate subshell.
   export NACL_ARCH="${arch}"
+
   echo "Building packages in NaCl Ports..."
   pushd "${NACL_PORTS}/src" > /dev/null
   make ncurses zlib openssl protobuf
@@ -139,7 +157,26 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
   export NACLPORTS_LIBDIR=${NACL_TOOLCHAIN_ROOT}/${NACL_CROSS_PREFIX}/usr/lib
   eval $(${NACL_PORTS}/src/build_tools/nacl_env.sh --print)
 
+  glibc_compat="${NACL_TOOLCHAIN_ROOT}/${arch}-nacl/usr/include/glibc-compat"
+  export CFLAGS="${CFLAGS} -I${glibc_compat}"
+  export CXXFLAGS="${CXXFLAGS} -I${glibc_compat}"
+
   if [[ ${FAST} != "fast" ]]; then
+    if [[ ! -d "build/${LIBSSH_DIR}/build-${arch}" ]]; then
+      echo "Building libssh..."
+      pushd "build/${LIBSSH_DIR}" > /dev/null
+      rm -Rf "build-${arch}"
+      mkdir "build-${arch}"
+      cd "build-${arch}"
+      cmake -DWITH_ZLIB=OFF -DWITH_STATIC_LIB=ON -DWITH_SHARED_LIB=OFF -DWITH_EXAMPLES=OFF -DHAVE_GETADDRINFO=ON ..
+      make
+      popd > /dev/null
+    fi
+
+    #
+    # Mosh client build.
+    #
+
     pushd .. > /dev/null
     if [[ ! -f configure ]]; then
       echo "Running autogen."
@@ -164,7 +201,7 @@ for arch in x86_64 i686; do ( # Do all this in a separate subshell.
     export CXXFLAGS="${CXXFLAGS} -fno-builtin"
     if [[ "${NACL_GLIBC}" != "1" ]]; then
       # Do things specific to newlib.
-      export CXXFLAGS="${CXXFLAGS} -I${INCLUDE_OVERRIDE} -I${NACL_TOOLCHAIN_ROOT}/${arch}-nacl/usr/include/glibc-compat -DHAVE_FORKPTY -DHAVE_SYS_UIO_H"
+      export CXXFLAGS="${CXXFLAGS} -I${INCLUDE_OVERRIDE} -DHAVE_FORKPTY -DHAVE_SYS_UIO_H"
     fi
     export LDFLAGS="${LDFLAGS} -Xlinker --unresolved-symbols=ignore-all"
     configure_options="--host=${arch} --enable-client=yes --enable-server=no --disable-silent-rules"
