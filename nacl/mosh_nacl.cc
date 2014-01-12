@@ -19,6 +19,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "pepper_wrapper.h"
+#include "ssh.h"
 
 #include <deque>
 #include <string>
@@ -173,7 +174,7 @@ PepperPOSIX::File *DevURandomFactory() {
 class MoshClientInstance : public pp::Instance {
  public:
   explicit MoshClientInstance(PP_Instance instance) :
-      pp::Instance(instance), addr_(NULL), port_(NULL),
+      pp::Instance(instance), addr_(NULL), port_(NULL), ssh_mode_(false),
       posix_(NULL), keyboard_(NULL), instance_handle_(this),
       window_change_(NULL), resolver_(instance_handle_), cc_factory_(this) {
     ++num_instances_;
@@ -251,11 +252,12 @@ class MoshClientInstance : public pp::Instance {
 
   virtual bool Init(uint32_t argc, const char *argn[], const char *argv[]) {
     bool got_addr = false;
+    string secret;
     for (int i = 0; i < argc; ++i) {
       string name = argn[i];
       int len = strlen(argv[i]) + 1;
       if (name == "key") {
-        setenv("MOSH_KEY", argv[i], 1);
+        secret = argv[i];
       } else if (name == "addr" && addr_ == NULL) {
         // TODO: Support IPv6 when Mosh does.
         const PP_HostResolver_Hint hint = {PP_NETADDRESS_FAMILY_IPV4, 0};
@@ -266,12 +268,28 @@ class MoshClientInstance : public pp::Instance {
       } else if (name == "port" && port_ == NULL) {
         port_ = new char[len];
         strncpy(port_, argv[i], len);
+      } else if (name == "mode") {
+        if (string(argv[i]) == "ssh") {
+          ssh_mode_ = true;
+        }
+      } else if (name == "user") {
+        ssh_user_ = argv[i];
       }
     }
 
     if (got_addr == false || port_ == NULL) {
       Log("Must supply addr and port attributes.");
       return false;
+    }
+
+    if (ssh_mode_) {
+      if (ssh_user_.size() == 0) {
+        Log("Must provide a username for ssh mode.");
+        return false;
+      }
+      ssh_password_ = secret;
+    } else {
+      setenv("MOSH_KEY", secret.c_str(), 1);
     }
 
     // Setup communications.
@@ -302,9 +320,18 @@ class MoshClientInstance : public pp::Instance {
     addr_ = new char[addr_len];
     strncpy(addr_, addr_str.c_str(), addr_len);
 
+    if (ssh_mode_) {
+      if (SSHLogin() == false) {
+        // TODO: This should probably log more prominently.
+        Log("Failed to initialize session via ssh.");
+        return;
+      }
+    }
+
     // Launch mosh-client.
     int thread_err = pthread_create(&thread_, NULL, Mosh, this);
     if (thread_err != 0) {
+      // TODO: Change this to output properly (left over after refactor).
       PostMessage(pp::Var("Failed to create Mosh thread: "));
       PostMessage(pp::Var(strerror(thread_err)));
       PostMessage(pp::Var("\r\n"));
@@ -322,6 +349,40 @@ class MoshClientInstance : public pp::Instance {
     return 0;
   }
 
+  // Get MOSH_KEY via SSH. Returns false on error. Will set the MOSH_KEY
+  // environment variable with the key received by the remote.
+  bool SSHLogin() {
+    setenv("HOME", "dummy", 1); // To satisfy libssh.
+    ssh::Session s(addr_, atoi(port_), ssh_user_);
+    if (s.Connect() == false) {
+      // TODO: These should probably log more prominently.
+      Log("Could not connect via ssh: %s", s.GetLastError().c_str());
+      return false;
+    }
+    // TODO: This _really_ needs to be more secure.
+    Log("Fingerprint of remote ssh host (MD5): %s",
+        s.GetPublicKey()->MD5().c_str());
+    // TODO: Should probably prompt the user for a password interactively.
+    if (s.AuthUsingPassword(ssh_password_) == false) {
+      Log("ssh authentication failed: %s", s.GetLastError().c_str());
+      return false;
+    }
+
+    ssh::Channel *c = s.NewChannel();
+    if (c->Execute("mosh-server") == false) {
+      Log("Failed to execute mosh-server: %s", s.GetLastError().c_str());
+      return false;
+    }
+    string buf;
+    if (c->Read(&buf) == false) {
+      Log("Error reading from remote ssh server: %s", s.GetLastError().c_str());
+      return false;
+    }
+
+    // TODO: Parse the output.
+    return false;
+  }
+
   // Pepper POSIX emulation.
   PepperPOSIX::POSIX *posix_;
   // Window change "file"; must be visible to sigaction().
@@ -330,9 +391,15 @@ class MoshClientInstance : public pp::Instance {
  private:
   static int num_instances_; // This needs to be a singleton.
   pthread_t thread_;
+
   // Non-const params for mosh_main().
   char *addr_;
   char *port_;
+
+  bool ssh_mode_;
+  string ssh_password_;
+  string ssh_user_;
+
   pp::InstanceHandle instance_handle_;
   Keyboard *keyboard_;
   pp::CompletionCallbackFactory<MoshClientInstance> cc_factory_;

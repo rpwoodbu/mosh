@@ -19,19 +19,27 @@ window.onload = function() {
   var connectButton = document.querySelector('#connect');
   connectButton.onclick = onConnectClick;
   var form = document.querySelector('#args');
-  args.onsubmit = function() { return false; };
+  form.onsubmit = function() { return false; };
 };
 
 function execMosh() {
   var args = {}
-  args.addr = document.querySelector('#addr').value;
-  args.port = document.querySelector('#port').value;
-  args.key = document.querySelector('#key').value;
+  var form = document.querySelector('#args');
+  args['addr'] = form['addr'].value;
+  args['port'] = form['port'].value;
+  args['user'] = form['user'].value;
+  args['key'] = form['key'].value;
+  for (var i = 0; i < form['mode'].length; ++i) {
+    if (form['mode'][i].checked) {
+      args['mode'] = form['mode'][i].value;
+      break;
+    }
+  }
 
-  var form = document.querySelector('#setup');
-  form.parentNode.removeChild(form);
+  var setup = document.querySelector('#setup');
+  setup.parentNode.removeChild(setup);
 
-  var terminal = new hterm.Terminal("mosh");
+  var terminal = new hterm.Terminal('mosh');
   terminal.decorate(document.querySelector('#terminal'));
   terminal.onTerminalReady = function() {
     terminal.setCursorPosition(0, 0);
@@ -39,7 +47,7 @@ function execMosh() {
     terminal.runCommandClass(mosh.CommandInstance, args);
   };
 
-  document.title += " - " + args.addr;
+  document.title += ' - ' + args.addr;
 
   // Useful for console debugging.
   window.term_ = terminal;
@@ -83,16 +91,18 @@ mosh.CommandInstance.prototype.run = function() {
       'height: 0;');
   this.moshNaCl_.setAttribute('src', 'mosh_client.nmf');
   this.moshNaCl_.setAttribute('type', 'application/x-nacl');
-  this.moshNaCl_.setAttribute('key', this.argv_.argString.key);
-  this.moshNaCl_.setAttribute('addr', this.argv_.argString.addr);
-  this.moshNaCl_.setAttribute('port', this.argv_.argString.port);
+  this.moshNaCl_.setAttribute('key', this.argv_.argString['key']);
+  this.moshNaCl_.setAttribute('addr', this.argv_.argString['addr']);
+  this.moshNaCl_.setAttribute('port', this.argv_.argString['port']);
+  this.moshNaCl_.setAttribute('user', this.argv_.argString['user']);
+  this.moshNaCl_.setAttribute('mode', this.argv_.argString['mode']);
   this.moshNaCl_.addEventListener('load', function(e) {
     console.log('Mosh NaCl loaded.');
   });
   this.moshNaCl_.addEventListener('message', this.onMessage_.bind(this));
   this.moshNaCl_.addEventListener('crash', function(e) {
     console.log('Mosh NaCl crashed.');
-    self.exit(-1);
+    // TODO: Handle the crash better, so the user knows what happened.
   });
 
   document.body.insertBefore(this.moshNaCl_, document.body.firstChild);

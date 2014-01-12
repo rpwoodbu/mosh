@@ -122,16 +122,27 @@ int POSIX::NextFileDescriptor() {
 }
 
 int POSIX::Socket(int domain, int type, int protocol) {
-  if (domain != AF_INET || type != SOCK_DGRAM || protocol != 0) {
-    errno = EPROTO;
+  if (domain != AF_INET) {
+    errno = EINVAL;
     return -1;
   }
 
-  NativeUDP *udp = new NativeUDP(instance_handle_);
-  int fd = NextFileDescriptor();
-  udp->target_ = selector_.NewTarget(fd);
-  files_[fd] = udp;
-  return fd;
+  if (type == SOCK_DGRAM && (protocol == 0 || protocol == IPPROTO_UDP)) {
+    NativeUDP *udp = new NativeUDP(instance_handle_);
+    int fd = NextFileDescriptor();
+    udp->target_ = selector_.NewTarget(fd);
+    files_[fd] = udp;
+    return fd;
+  }
+
+  if (type == SOCK_STREAM && (protocol == 0 || protocol == IPPROTO_TCP)) {
+    // TODO: Implement.
+    errno = EPROTONOSUPPORT;
+    return -1;
+  }
+
+  errno = EINVAL;
+  return -1;
 }
 
 int POSIX::Dup(int oldfd) {

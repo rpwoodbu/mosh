@@ -192,6 +192,10 @@ int getaddrinfo(const char *node, const char *service,
   ai->ai_family = AF_INET;
   ai->ai_addrlen = sizeof(*addr);
   ai->ai_addr = (struct sockaddr *)addr;
+  if (hints != NULL) {
+    ai->ai_protocol = hints->ai_protocol;
+    ai->ai_socktype = hints->ai_socktype;
+  }
 
   *res = ai;
   return 0;
@@ -219,6 +223,7 @@ char *gai_strerror(int errcode) {
 // There is a pseudo-overload that includes a third param |mode_t|.
 int open(const char *pathname, int flags, ...) {
   // TODO: For now, ignoring |mode_t| param.
+  Log("open(%s, %d, ...)", pathname, flags);
   return GetPOSIX()->Open(pathname, flags, 0);
 }
 
@@ -245,7 +250,14 @@ int close(int fd) {
 }
 
 int socket(int domain, int type, int protocol) {
+  Log("socket(%d, %d, %d)", domain, type, protocol);
   return GetPOSIX()->Socket(domain, type, protocol);
+}
+
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+  Log("bind(%d, ...): Not implemented", sockfd);
+  errno = ENOMEM;
+  return -1;
 }
 
 // Most socket options aren't supported by PPAPI, so just stubbing out.
@@ -267,6 +279,12 @@ int pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
     const struct timespec *timeout, const sigset_t *sigmask) {
   return GetPOSIX()->PSelect(
      nfds, readfds, writefds, exceptfds, timeout, sigmask);
+}
+
+int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
+    const struct timespec *timeout) {
+  Log("select()");
+  return pselect(nfds, readfds, writefds, exceptfds, timeout, NULL);
 }
 
 ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags) {

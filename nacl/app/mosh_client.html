@@ -46,15 +46,24 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     <form id="args">
       <table>
         <tr>
+          <td>Mode:</td>
+          <td><input name="mode" type="radio" value="ssh" checked>SSH</input>
+            <input name="mode" type="radio" value="manual">Manual</input></td>
+        </tr>
+        </tr>
+          <td>Username (ssh mode):</td>
+          <td><input id="user" type="text" autofocus></td>
+        </tr>
+        <tr>
           <td>Hostname or IP address:</td>
-          <td><input id="addr" type="text" autofocus></td>
+          <td><input id="addr" type="text"></td>
         </tr>
         <tr>
           <td>Port number:</td>
           <td><input id="port" type="text"></td>
         </tr>
-          <td>MOSH_KEY:</td>
-          <td><input id="key" type="text"></td>
+          <td>MOSH_KEY / password:</td>
+          <td><input id="key" type="password"></td>
         </tr>
       </table>
       <input id="connect" type="submit" value="Connect">
