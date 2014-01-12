@@ -21,11 +21,14 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <langinfo.h>
+#include <netdb.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -165,6 +168,51 @@ int fclose(FILE *stream) {
 }
 
 //
+// Fake getaddrinfo() and friends, as we expect it will always be an IP address.
+//
+
+int getaddrinfo(const char *node, const char *service,
+    const struct addrinfo *hints,
+    struct addrinfo **res) {
+  Log("getaddrinfo(%s, %s, ...)", node, service);
+  if (hints->ai_flags & AI_CANONNAME) {
+    Log("getaddrinfo(): AI_CANONNAME not implemented.");
+    return EAI_FAIL;
+  }
+
+  // TODO: Handle IPv6 when Mosh does.
+  struct sockaddr_in *addr = new sockaddr_in;
+  addr->sin_family = AF_INET;
+  addr->sin_port = 0;
+  // DONOTSUBMIT: Actually stuff the address in here.
+  addr->sin_addr.s_addr = 0;
+
+  struct addrinfo *ai = new struct addrinfo;
+  memset(ai, 0, sizeof(*ai));
+  ai->ai_family = AF_INET;
+  ai->ai_addrlen = sizeof(*addr);
+  ai->ai_addr = (struct sockaddr *)addr;
+
+  *res = ai;
+  return 0;
+}
+
+void freeaddrinfo(struct addrinfo *res) {
+  Log("freeaddrinfo()");
+  while (res != NULL) {
+    struct addrinfo *last = res;
+    delete res->ai_addr;
+    res = res->ai_next;
+    delete last;
+  }
+}
+
+char *gai_strerror(int errcode) {
+  Log("gai_strerror(): Not implemented.");
+  return "gai_strerror not implemented";
+}
+
+//
 // Wrap all unistd functions to communicate via the Pepper API.
 //
 
@@ -207,7 +255,11 @@ int setsockopt(int sockfd, int level, int optname,
   return 0;
 }
 
-int dup(int oldfd) {
+// For some reason, after linking in ssh.cc, dup() gets brought in from libnacl
+// (which I don't even want to link, but seems to anyway). Using linker flag
+// "--wrap=dup" allows me to work around this by redirecting all references to
+// "dup" to "__wrap_dup" instead.
+int __wrap_dup(int oldfd) {
   return GetPOSIX()->Dup(oldfd);
 }
 

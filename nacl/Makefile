@@ -17,6 +17,7 @@ OUTDIR:=app
 PROJECT:=$(OUTDIR)/mosh_client
 CXX_SOURCES:=\
 	mosh_nacl.cc \
+	ssh.cc \
 	pepper_posix.cc \
 	pepper_posix_native_udp.cc \
 	pepper_posix_selector.cc \
@@ -24,6 +25,7 @@ CXX_SOURCES:=\
 	pepper_wrapper.cc
 
 CXX_HEADERS:=\
+	ssh.h \
 	pepper_posix.h \
 	pepper_posix_selector.h \
 	pepper_posix_native_udp.h \
@@ -31,18 +33,19 @@ CXX_HEADERS:=\
 	pepper_wrapper.h
 
 OBJECTS:=\
-	ARCH/src/frontend/mosh-client-nacl.o \
-	ARCH/src/frontend/stmclient.o \
-	ARCH/src/frontend/terminaloverlay.o
+	build/ARCH/src/frontend/mosh-client-nacl.o \
+	build/ARCH/src/frontend/stmclient.o \
+	build/ARCH/src/frontend/terminaloverlay.o
 
 LIBDIRS:=\
-	ARCH/src/frontend \
-	ARCH/src/crypto \
-	ARCH/src/network \
-	ARCH/src/statesync \
-	ARCH/src/terminal \
-	ARCH/src/util \
-	ARCH/src/protobufs \
+	-Lbuild/ARCH/src/frontend \
+	-Lbuild/ARCH/src/crypto \
+	-Lbuild/ARCH/src/network \
+	-Lbuild/ARCH/src/statesync \
+	-Lbuild/ARCH/src/terminal \
+	-Lbuild/ARCH/src/util \
+	-Lbuild/ARCH/src/protobufs \
+	-Lbuild/libssh-0.6.0/build-ARCH/src
 
 LIBS:=\
 	-lmoshcrypto \
@@ -50,7 +53,8 @@ LIBS:=\
 	-lmoshstatesync \
 	-lmoshterminal \
 	-lmoshutil \
-	-lmoshprotos
+	-lmoshprotos \
+	-lssh
 
 OSNAME:=$(shell python $(NACL_SDK_ROOT)/tools/getos.py)
 TC_PATH:=$(abspath $(NACL_SDK_ROOT)/toolchain/$(OSNAME)_x86_newlib)
@@ -58,13 +62,14 @@ CXX:=$(TC_PATH)/bin/i686-nacl-g++
 OBJCOPY:=$(TC_PATH)/bin/i686-nacl-objcopy
 
 # Project Build flags
-override LDFLAGS+=-lppapi_cpp -lppapi -lz -lssl -lncurses -lprotobuf -lcrypto -lglibc-compat
+override LDFLAGS+=-Xlinker --wrap=dup -lppapi_cpp -lppapi -lz -lssl -lncurses -lprotobuf -lcrypto -lglibc-compat
 # Add this linker flag to build statically:
 	#-static -T $(TC_PATH)/x86_64-nacl/lib/ldscripts/elf64_nacl.x.static
 #override WARNINGS+=-Wno-long-long -Wall -Wswitch-enum -Werror
 #override CXXFLAGS+=-pthread -std=gnu++0x $(WARNINGS) -Iinclude \
         -I$(NACL_SDK_ROOT)/include
-override CXXFLAGS+=-pthread $(WARNINGS) -I$(NACL_SDK_ROOT)/include -fno-builtin
+override CXXFLAGS+=-pthread $(WARNINGS) -I$(NACL_SDK_ROOT)/include -fno-builtin \
+	-Ibuild/libssh-0.6.0/include
 #override CFLAGS+=-pthread $(WARNINGS) -Iinclude -I$(NACL_SDK_ROOT)/include
 
 #COMPAT_INC:=-I$(PNACL_TC_ROOT)/usr/include/glibc-compat
@@ -89,8 +94,8 @@ $(i686_OBJS) : %_32.o : %.cc $(THIS_MAKE) $(CXX_HEADERS)
 build/i686/src/frontend/mosh-client-nacl.o : build/i686/src/frontend/mosh-client.o
 	$(OBJCOPY) --redefine-sym main=mosh_main $< $@
 
-i686_MOSHOBJS:=$(patsubst ARCH%,build/i686%,$(OBJECTS))
-i686_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/i686%,$(LIBDIRS))
+i686_MOSHOBJS:=$(subst ARCH,i686,$(OBJECTS))
+i686_MOSHLIBDIRS:=$(subst ARCH,i686,$(LIBDIRS))
 i686_NEWLIB_CXXFLAGS:=$(subst ARCH,i686,$(NEWLIB_CXXFLAGS))
 $(PROJECT)_i686.nexe : $(i686_OBJS) $(i686_MOSHOBJS)
 	$(CXX) -o $@ $^ -m32 $(LIBS) $(i686_NEWLIB_CXXFLAGS) \
@@ -98,14 +103,14 @@ $(PROJECT)_i686.nexe : $(i686_OBJS) $(i686_MOSHOBJS)
 
 # Define 64 bit compile and link rules for C++ sources
 x86_64_OBJS:=$(patsubst %.cc,%_64.o,$(CXX_SOURCES))
-$(x86_64_OBJS) : %_64.o : %.cc $(THIS_MAKE)
+$(x86_64_OBJS) : %_64.o : %.cc $(THIS_MAKE) $(CXX_HEADERS)
 	$(CXX) -o $@ -c $< -m64 $(x86_64_NEWLIB_CXXFLAGS)
 
 build/x86_64/src/frontend/mosh-client-nacl.o : build/x86_64/src/frontend/mosh-client.o
 	$(OBJCOPY) --redefine-sym main=mosh_main $< $@
 
-x86_64_MOSHOBJS:=$(patsubst ARCH%,build/x86_64%,$(OBJECTS))
-x86_64_MOSHLIBDIRS:=$(patsubst ARCH%,-Lbuild/x86_64%,$(LIBDIRS))
+x86_64_MOSHOBJS:=$(subst ARCH,x86_64,$(OBJECTS))
+x86_64_MOSHLIBDIRS:=$(subst ARCH,x86_64,$(LIBDIRS))
 x86_64_NEWLIB_CXXFLAGS:=$(subst ARCH,x86_64,$(NEWLIB_CXXFLAGS))
 $(PROJECT)_x86_64.nexe : $(x86_64_OBJS) $(x86_64_MOSHOBJS)
 	$(CXX) -o $@ $^ -m64 $(LIBS) $(x86_64_NEWLIB_CXXFLAGS) \
