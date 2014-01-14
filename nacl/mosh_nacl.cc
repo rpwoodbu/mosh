@@ -335,10 +335,6 @@ class MoshClientInstance : public pp::Instance {
       }
     } else {
       LaunchMosh(0);
-      /*
-      pp::Module::Get()->core()->CallOnMainThread(
-          0, cc_factory_.NewCallback(&MoshClientInstance::LaunchMosh));
-          */
     }
   }
 
@@ -390,18 +386,29 @@ class MoshClientInstance : public pp::Instance {
           s.GetLastError().c_str());
       return NULL;
     }
-    string out, err;
+    string buf;
     thiz->Log("SSHLogin(): About to read data");
-    if (c->Read(&out, &err) == false) {
+    if (c->Read(&buf, NULL) == false) {
       thiz->Error("Error reading from remote ssh server: %s",
           s.GetLastError().c_str());
       return NULL;
     }
 
-    thiz->Log("SSHLogin(): stdout: '%s'", out.c_str());
-    thiz->Log("SSHLogin(): stderr: '%s'", err.c_str());
+    thiz->Log("SSHLogin(): Read: '%s'", buf.c_str());
+    char key[23];
+    thiz->port_ = new char[6];
+    int result = sscanf(buf.c_str(), "\r\nMOSH CONNECT %5s %22s\r\n",
+        thiz->port_, key);
+    if (result != 2) {
+      thiz->Error("Bad response when running mosh-server: '%s'", buf.c_str());
+      return NULL;
+    }
 
-    // TODO: Parse the output.
+    thiz->Log("SSHLogin(): Port: '%s' Key: '%s'", thiz->port_, key);
+    setenv("MOSH_KEY", key, 1);
+    pp::Module::Get()->core()->CallOnMainThread(
+        0, thiz->cc_factory_.NewCallback(&MoshClientInstance::LaunchMosh));
+    return NULL;
   }
 
   // Pepper POSIX emulation.
