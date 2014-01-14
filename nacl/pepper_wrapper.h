@@ -27,7 +27,4 @@
 // support multiple Pepper Instances.
 PepperPOSIX::POSIX *GetPOSIX();
 
-// Implement this to plumb logging from wrapper functions to your app.
-void Log(const char *format, ...);
-
 #endif // PEPPER_WRAPPER

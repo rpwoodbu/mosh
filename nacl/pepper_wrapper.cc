@@ -17,14 +17,17 @@
 
 #include "pepper_wrapper.h"
 
+#include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <langinfo.h>
 #include <netdb.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
@@ -168,7 +171,8 @@ int fclose(FILE *stream) {
 }
 
 //
-// Fake getaddrinfo() and friends, as we expect it will always be an IP address.
+// Fake getaddrinfo() and friends, as we expect it will always be an IP address
+// and numeric port.
 //
 
 int getaddrinfo(const char *node, const char *service,
@@ -180,12 +184,22 @@ int getaddrinfo(const char *node, const char *service,
     return EAI_FAIL;
   }
 
+  // Parse node (aka hostname) as dotted-quad IPv4 address.
+  int part[4];
+  sscanf(node, "%d.%d.%d.%d", &part[0], &part[1], &part[2], &part[3]);
+  Log("getaddrinfo(): sscanf came up with: %d.%d.%d.%d",
+      part[0], part[1], part[2], part[3]);
+  uint32_t ip_addr = 0;
+  for (int i = 0; i < 4; ++i) {
+    ip_addr |= part[i] << (8*i);
+  }
+
   // TODO: Handle IPv6 when Mosh does.
   struct sockaddr_in *addr = new sockaddr_in;
   addr->sin_family = AF_INET;
   addr->sin_port = 0;
-  // DONOTSUBMIT: Actually stuff the address in here.
-  addr->sin_addr.s_addr = 0;
+  addr->sin_addr.s_addr = ip_addr;
+  addr->sin_port = htons(atoi(service));
 
   struct addrinfo *ai = new struct addrinfo;
   memset(ai, 0, sizeof(*ai));
@@ -267,6 +281,14 @@ int setsockopt(int sockfd, int level, int optname,
   return 0;
 }
 
+// This is needed to return TCP connection status.
+int getsockopt(int sockfd, int level, int optname,
+    void *optval, socklen_t *optlen) {
+  Log("getsockopt(%d, %d, %d, ...", sockfd, level, optname);
+  // TODO: Wire this up for returning TCP connection status. For now, stub out.
+  return -1;
+}
+
 // For some reason, after linking in ssh.cc, dup() gets brought in from libnacl
 // (which I don't even want to link, but seems to anyway). Using linker flag
 // "--wrap=dup" allows me to work around this by redirecting all references to
@@ -283,17 +305,38 @@ int pselect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 
 int select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
     const struct timespec *timeout) {
-  Log("select()");
   return pselect(nfds, readfds, writefds, exceptfds, timeout, NULL);
+}
+
+ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
+  return GetPOSIX()->Recv(sockfd, buf, len, flags);
 }
 
 ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags) {
   return GetPOSIX()->RecvMsg(sockfd, msg, flags);
 }
 
+ssize_t send(int sockfd, const void *buf, size_t len, int flags){
+  return GetPOSIX()->Send(sockfd, buf, len, flags);
+}
+
 ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
     const struct sockaddr *dest_addr, socklen_t addrlen) {
   return GetPOSIX()->SendTo(sockfd, buf, len, flags, dest_addr, addrlen);
+}
+
+int fcntl(int fd, int cmd, ...) {
+  Log("fcntl(%d, %d, ...)", fd, cmd);
+  va_list argp;
+  va_start(argp, cmd);
+  int result = GetPOSIX()->FCntl(fd, cmd, argp);
+  va_end(argp);
+  return result;
+}
+
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+  Log("connect(%d, ...)", sockfd);
+  return GetPOSIX()->Connect(sockfd, addr, addrlen);
 }
 
 } // extern "C"

@@ -32,9 +32,9 @@ class Target; // This is declared fully below.
 
 // Selector implements select()-style functionality for callback-style I/O.
 // In your I/O implementation, get and retain a Target instance by calling
-// NewTarget(). Call Target's Update() method whenever availability of data
-// changes. Other threads can then call Selector's Select() or SelectAll() to
-// block until data is available.
+// NewTarget(). Call Target's UpdateRead() or UpdateWrite() methods whenever
+// availability of data changes. Other threads can then call Selector's
+// Select() or SelectAll() to block until data is available.
 class Selector {
  public:
   explicit Selector();
@@ -53,11 +53,12 @@ class Selector {
   // pthread_cond_timedwait() if there are no targets with data available 
   // when the method is called.
   vector<Target*> Select(
-      const vector<Target*> &targets, const struct timespec *timeout);
+      const vector<Target*> &read_targets, const vector<Target*> &write_targets,
+      const struct timespec *timeout);
 
   // SelectAll is similar to Select, but waits for all registered targets.
   vector<Target*> SelectAll(const struct timespec *timeout) {
-    return Select(targets_, timeout);
+    return Select(targets_, targets_, timeout);
   }
 
  private:
@@ -72,7 +73,8 @@ class Selector {
   void Deregister(const Target *target);
 
   // HasData returns a vector of Targets that have data ready to be read.
-  const vector<Target*> HasData(const vector<Target*> &targets);
+  const vector<Target*> HasData(const vector<Target*> &read_targets,
+      const vector<Target*> &write_targets);
 
   vector<Target*> targets_;
   pthread_mutex_t notify_mutex_;
@@ -85,26 +87,36 @@ class Selector {
 
 // Target is used by an I/O "target" to communicate with a Selector instance
 // for emulating POSIX select()-style functionality. The I/O target should call
-// Update() whenever data availability changes.
+// UpdateRead() or UpdateWrite() whenever data availability changes.
 class Target {
  public:
-  Target(class Selector *s, int id) : selector_(s), id_(id), has_data_(false) {}
+  Target(class Selector *s, int id) :
+      selector_(s), id_(id), has_read_data_(false), has_write_data_(false) {}
   ~Target();
 
-  // Update updates Target whether there is pending data available in the I/O
-  // target. If the state has changed, Target notifies Selector of the change.
-  // You can call Update even if the state has not changed since the last call
-  // to Update, as Update will detect that and not send superfluous
-  // notifications to Selector. 
-  void Update(bool has_data);
+  // UpdateRead updates Target whether there is pending data available in the
+  // I/O target. If the state has changed, Target notifies Selector of the
+  // change.  You can call UpdateRead even if the state has not changed since
+  // the last call to UpdateRead, as UpdateRead will detect that and not send
+  // superfluous notifications to Selector. 
+  void UpdateRead(bool has_data);
 
-  const bool has_data() { return has_data_; }
+  // UpdateWrite updates Target whether new data can be accepted by the I/O
+  // target. If the state has changed, Target notifies Selector of the change.
+  // You can call UpdateWrite even if the state has not changed since the last
+  // call to UpdateWrite, as UpdateWrite will detect that and not send
+  // superfluous notifications to Selector. 
+  void UpdateWrite(bool has_data);
+
+  const bool has_read_data() { return has_read_data_; }
+  const bool has_write_data() { return has_write_data_; }
   const int id() { return id_; }
 
  private:
   class Selector *selector_;
   int id_;
-  bool has_data_;
+  bool has_read_data_;
+  bool has_write_data_;
 
   // Disable copy and assignment.
   Target(const Target&);

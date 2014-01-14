@@ -20,8 +20,10 @@
 
 #include "pepper_posix.h"
 #include "pepper_posix_native_udp.h"
+#include "pepper_posix_native_tcp.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 
 namespace PepperPOSIX {
@@ -127,18 +129,19 @@ int POSIX::Socket(int domain, int type, int protocol) {
     return -1;
   }
 
+  File *file = NULL;
+
   if (type == SOCK_DGRAM && (protocol == 0 || protocol == IPPROTO_UDP)) {
-    NativeUDP *udp = new NativeUDP(instance_handle_);
-    int fd = NextFileDescriptor();
-    udp->target_ = selector_.NewTarget(fd);
-    files_[fd] = udp;
-    return fd;
+    file = new NativeUDP(instance_handle_);
+  } else if (type == SOCK_STREAM && (protocol == 0 || protocol == IPPROTO_TCP)) {
+    file = new NativeTCP(instance_handle_);
   }
 
-  if (type == SOCK_STREAM && (protocol == 0 || protocol == IPPROTO_TCP)) {
-    // TODO: Implement.
-    errno = EPROTONOSUPPORT;
-    return -1;
+  if (file != NULL) {
+    int fd = NextFileDescriptor();
+    file->target_ = selector_.NewTarget(fd);
+    files_[fd] = file;
+    return fd;
   }
 
   errno = EINVAL;
@@ -163,8 +166,63 @@ int POSIX::Dup(int oldfd) {
 int POSIX::PSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
     const struct timespec *timeout, const sigset_t *sigmask) {
   int result = 0;
-  // This code assumes that the caller cares about all open files. This is not
-  // perfectly compliant, but works for the initial use case.
+  fd_set new_readfds, new_writefds;
+  FD_ZERO(&new_readfds);
+  FD_ZERO(&new_writefds);
+
+  vector<Target *> read_targets, write_targets;
+  for (int fd = 0; fd < nfds; ++fd) {
+    if (readfds != NULL && FD_ISSET(fd, readfds)) {
+      read_targets.push_back(files_[fd]->target_);
+    }
+    if (writefds != NULL && FD_ISSET(fd, writefds)) {
+      write_targets.push_back(files_[fd]->target_);
+    }
+  }
+  vector<Target *> ready_targets = selector_.Select(
+      read_targets, write_targets, timeout);
+  Log("POSIX::PSelect(): Sizes of r, w, ready targets: %d, %d, %d",
+      read_targets.size(), write_targets.size(), ready_targets.size());
+
+  for (vector<Target *>::iterator i = ready_targets.begin();
+      i != ready_targets.end();
+      ++i) {
+    int fd = (*i)->id();
+    Log("POSIX::PSelect(): Checking fd %d", fd);
+    File *file = files_[fd];
+
+    // TODO: Consider getting rid of these casts, as
+    // has_read_data/has_write_data may be all we need (except for signals).
+    Reader *reader = dynamic_cast<Reader *>(file);
+    if (reader != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
+      Log("POSIX::PSelect(): fd %d readable", fd);
+      FD_SET(fd, &new_readfds);
+      ++result;
+      continue;
+    }
+    Writer *writer = dynamic_cast<Writer *>(file);
+    if (writer != NULL && FD_ISSET(fd, writefds) && (*i)->has_write_data()) {
+      Log("POSIX::PSelect(): fd %d writeable", fd);
+      FD_SET(fd, &new_writefds);
+      ++result;
+      continue;
+    }
+    UDP *udp = dynamic_cast<UDP *>(file);
+    if (udp != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
+      Log("POSIX::PSelect(): UDP fd %d readable", fd);
+      FD_SET(fd, &new_readfds);
+      ++result;
+      continue;
+    }
+    Signal *signal = dynamic_cast<Signal *>(file);
+    if (signal != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
+      Log("POSIX::PSelect(): Signal fd %d readable", fd);
+      signal->Handle();
+      ++result;
+      continue;
+    }
+  }
+
   if (readfds != NULL) {
     FD_ZERO(readfds);
   }
@@ -174,43 +232,30 @@ int POSIX::PSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfd
   if (exceptfds != NULL) {
     FD_ZERO(exceptfds);
   }
-
-  vector<Target *> targets = selector_.SelectAll(timeout);
-  for (vector<Target *>::iterator i = targets.begin();
-      i != targets.end();
-      ++i) {
-    int fd = (*i)->id();
-    File *file = files_[fd];
-
-    Reader *reader = dynamic_cast<Reader *>(file);
-    if (reader != NULL) {
+  for (int fd = 0; fd < nfds; ++fd) {
+    if (FD_ISSET(fd, &new_readfds)) {
       FD_SET(fd, readfds);
-      ++result;
-      continue;
     }
-    Writer *writer = dynamic_cast<Writer *>(file);
-    if (writer != NULL) {
+    if (FD_ISSET(fd, &new_writefds)) {
       FD_SET(fd, writefds);
-      ++result;
-      continue;
     }
-    UDP *udp = dynamic_cast<UDP *>(file);
-    if (udp != NULL) {
-      FD_SET(fd, readfds);
-      ++result;
-      continue;
-    }
-    Signal *signal = dynamic_cast<Signal *>(file);
-    if (signal != NULL) {
-      signal->Handle();
-      ++result;
-      continue;
-    }
-
-    assert(false); // Should not get here.
   }
 
   return result;
+}
+
+ssize_t POSIX::Recv(int sockfd, void *buf, size_t len, int flags) {
+  if (files_.count(sockfd) == 0) {
+    errno = EBADF;
+    return -1;
+  }
+  TCP *tcp = dynamic_cast<TCP *>(files_[sockfd]);
+  if (tcp == NULL) {
+    errno = EBADF;
+    return -1;
+  }
+
+  return tcp->Receive(buf, len, flags);
 }
 
 ssize_t POSIX::RecvMsg(int sockfd, struct msghdr *msg, int flags) {
@@ -243,6 +288,19 @@ void MakeAddress(const struct sockaddr *addr, socklen_t addrlen,
   pp_addr->port = in_addr->sin_port;
 }
 
+ssize_t POSIX::Send(int sockfd, const void *buf, size_t len, int flags) {
+  if (files_.count(sockfd) == 0) {
+    return EBADF;
+  }
+  TCP *tcp = dynamic_cast<TCP *>(files_[sockfd]);
+  if (tcp == NULL) {
+    errno = EBADF;
+    return -1;
+  }
+
+  return tcp->Send(buf, len, flags);
+}
+
 ssize_t POSIX::SendTo(int sockfd, const void *buf, size_t len, int flags,
     const struct sockaddr *dest_addr, socklen_t addrlen) {
   if (files_.count(sockfd) == 0) {
@@ -259,6 +317,42 @@ ssize_t POSIX::SendTo(int sockfd, const void *buf, size_t len, int flags,
   MakeAddress(dest_addr, addrlen, &addr);
 
   return udp->Send(buffer, flags, addr);
+}
+
+int POSIX::FCntl(int fd, int cmd, va_list arg) {
+  if (cmd == F_SETFL) {
+    long long_arg = va_arg(arg, long);
+    if (long_arg & O_NONBLOCK) {
+      // For now, everything is nonblocking, so this is a no-op.
+      return 0;
+    }
+    Log("POSIX::FCntl(): Got F_SETFL, but unsupported arg: 0%lo", long_arg);
+    // TODO: Consider this an error?
+    return 0;
+  }
+
+  // Anything we don't explicitly handle or ignore is considered an error, to
+  // avoid any potential confusion.
+  Log("POSIX::FCntl(): Unsupported cmd/arg");
+  errno = EINVAL;
+  return -1;
+}
+
+int POSIX::Connect(
+    int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+  if (files_.count(sockfd) == 0) {
+    return EBADF;
+  }
+  TCP *tcp = dynamic_cast<TCP *>(files_[sockfd]);
+  if (tcp == NULL) {
+    errno = EBADF;
+    return -1;
+  }
+
+  PP_NetAddress_IPv4 pp_addr;
+  MakeAddress(addr, addrlen, &pp_addr);
+
+  return tcp->Connect(pp_addr);
 }
 
 } // namespace PepperPOSIX

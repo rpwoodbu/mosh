@@ -25,6 +25,7 @@
 
 #include <map>
 #include <string>
+#include <stdarg.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -35,13 +36,16 @@
 using ::std::map;
 using ::std::string;
 
+// Implement this to plumb logging from Pepper functions to your app.
+void Log(const char *format, ...);
+
 namespace PepperPOSIX {
 
 // Abstract class representing a POSIX file.
 class File {
  public:
   File() : target_(NULL) {}
-  virtual ~File() {};
+  virtual ~File() { delete target_; };
 
   virtual int Close() { return 0; }
   int fd() {
@@ -60,26 +64,30 @@ class File {
 };
 
 // Abstract class defining a file that is read-only.
-class Reader : public File {
+class Reader : public virtual File {
  public:
   virtual ssize_t Read(void *buf, size_t count) = 0;
 };
 
 // Abstract class defining a file that is write-only.
-class Writer : public File {
+class Writer : public virtual File {
  public:
   virtual ssize_t Write(const void *buf, size_t count) = 0;
 };
 
+// Abstract class defining a file that is read/write.
+class ReadWriter : public Reader, public Writer {
+};
+
 // Special File to handle signals. Write a method in your implementation that
-// calls target_->Update(true) when there's an outstanding signal. Handle()
+// calls target_->UpdateRead(true) when there's an outstanding signal. Handle()
 // will get called when there is.
 class Signal : public File {
  public:
   // Implement this to handle a signal. It will be called from PSelect. It is
   // the responsibility of the implementer to track what signals are
-  // outstanding. Call target_->Update(false) from this method when there are
-  // no more outstanding signals.
+  // outstanding. Call target_->UpdateRead(false) from this method when there
+  // are no more outstanding signals.
   virtual void Handle() = 0;
 };
 
@@ -113,10 +121,18 @@ class POSIX {
   int PSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
       const struct timespec *timeout, const sigset_t *sigmask);
 
+  ssize_t Recv(int sockfd, void *buf, size_t len, int flags);
+
   ssize_t RecvMsg(int sockfd, struct msghdr *msg, int flags);
+
+  ssize_t Send(int sockfd, const void *buf, size_t len, int flags);
 
   ssize_t SendTo(int sockfd, const void *buf, size_t len, int flags,
       const struct sockaddr *dest_addr, socklen_t addrlen);
+
+  int FCntl(int fd, int cmd, va_list args);
+
+  int Connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 
   // Register a filename and File factory to be used when that file is
   // opened.

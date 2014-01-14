@@ -69,7 +69,7 @@ class Keyboard : public PepperPOSIX::Reader {
     if (keypresses_.size() > 0) {
       ((char *)buf)[0] = keypresses_.front();
       keypresses_.pop_front();
-      target_->Update(keypresses_.size() > 0);
+      target_->UpdateRead(keypresses_.size() > 0);
       result = 1;
     } else {
       // Cannot use Log() here; circular dependency.
@@ -86,7 +86,7 @@ class Keyboard : public PepperPOSIX::Reader {
       keypresses_.push_back(input[i]);
     }
     pthread_mutex_unlock(&keypresses_lock_);
-    target_->Update(true);
+    target_->UpdateRead(true);
   }
 
  private:
@@ -129,7 +129,7 @@ class WindowChange : public PepperPOSIX::Signal {
   void Update(int width, int height) {
     width_ = width;
     height_ = height;
-    target_->Update(true);
+    target_->UpdateRead(true);
   }
 
   void SetHandler(void (*sigwinch_handler)(int)) {
@@ -138,7 +138,7 @@ class WindowChange : public PepperPOSIX::Signal {
 
   virtual void Handle() {
     sigwinch_handler_(SIGWINCH);
-    target_->Update(false);
+    target_->UpdateRead(false);
   }
 
   int height() { return height_; }
@@ -235,18 +235,26 @@ class MoshClientInstance : public pp::Instance {
     PostMessage(pp::Var(dict));
   }
 
-  // Like Output(), but printf-style.
-  void Logv(const char *format, va_list argp) {
+  // Sends messages to the Javascript console log.
+  void Logv(OutputType t, const char *format, va_list argp) {
     char buf[1024];
     int size = vsnprintf(buf, sizeof(buf), format, argp);
-    Output(TYPE_LOG, string((const char *)buf, size));
+    Output(t, string((const char *)buf, size));
   }
 
   // Sends messages to the Javascript console log.
   void Log(const char *format, ...) {
     va_list argp;
     va_start(argp, format);
-    Logv(format, argp);
+    Logv(TYPE_LOG, format, argp);
+    va_end(argp);
+  }
+
+  // Sends error messages to the Javascript console log and terminal.
+  void Error(const char *format, ...) {
+    va_list argp;
+    va_start(argp, format);
+    Logv(TYPE_ERROR, format, argp);
     va_end(argp);
   }
 
@@ -321,20 +329,24 @@ class MoshClientInstance : public pp::Instance {
     strncpy(addr_, addr_str.c_str(), addr_len);
 
     if (ssh_mode_) {
-      if (SSHLogin() == false) {
-        // TODO: This should probably log more prominently.
-        Log("Failed to initialize session via ssh.");
-        return;
+      int thread_err = pthread_create(&thread_, NULL, SSHLogin, this);
+      if (thread_err != 0) {
+        Error("Failed to create SSH login thread: %s", strerror(thread_err));
       }
+    } else {
+      LaunchMosh(0);
+      /*
+      pp::Module::Get()->core()->CallOnMainThread(
+          0, cc_factory_.NewCallback(&MoshClientInstance::LaunchMosh));
+          */
     }
+  }
 
-    // Launch mosh-client.
+  // Mosh launcher that can be a callback.
+  void LaunchMosh(int32_t result) {
     int thread_err = pthread_create(&thread_, NULL, Mosh, this);
     if (thread_err != 0) {
-      // TODO: Change this to output properly (left over after refactor).
-      PostMessage(pp::Var("Failed to create Mosh thread: "));
-      PostMessage(pp::Var(strerror(thread_err)));
-      PostMessage(pp::Var("\r\n"));
+      Error("Failed to create Mosh thread: %s", strerror(thread_err));
     }
   }
 
@@ -349,38 +361,45 @@ class MoshClientInstance : public pp::Instance {
     return 0;
   }
 
-  // Get MOSH_KEY via SSH. Returns false on error. Will set the MOSH_KEY
-  // environment variable with the key received by the remote.
-  bool SSHLogin() {
+  // Get MOSH_KEY via SSH.
+  static void *SSHLogin(void *data) {
+    MoshClientInstance *thiz = reinterpret_cast<MoshClientInstance *>(data);
+
     setenv("HOME", "dummy", 1); // To satisfy libssh.
-    ssh::Session s(addr_, atoi(port_), ssh_user_);
+    ssh::Session s(thiz->addr_, atoi(thiz->port_), thiz->ssh_user_);
+    s.SetOption(SSH_OPTIONS_LOG_VERBOSITY, SSH_LOG_RARE);
     if (s.Connect() == false) {
-      // TODO: These should probably log more prominently.
-      Log("Could not connect via ssh: %s", s.GetLastError().c_str());
-      return false;
+      thiz->Error("Could not connect via ssh: %s", s.GetLastError().c_str());
+      return NULL;
     }
     // TODO: This _really_ needs to be more secure.
-    Log("Fingerprint of remote ssh host (MD5): %s",
+    thiz->Log("Fingerprint of remote ssh host (MD5): %s",
         s.GetPublicKey()->MD5().c_str());
     // TODO: Should probably prompt the user for a password interactively.
-    if (s.AuthUsingPassword(ssh_password_) == false) {
-      Log("ssh authentication failed: %s", s.GetLastError().c_str());
-      return false;
+    if (s.AuthUsingPassword(thiz->ssh_password_) == false) {
+      thiz->Error("ssh authentication failed: %s", s.GetLastError().c_str());
+      return NULL;
     }
 
+    thiz->Log("SSHLogin(): About to instantiate channel");
     ssh::Channel *c = s.NewChannel();
+    thiz->Log("SSHLogin(): About to execute command");
     if (c->Execute("mosh-server") == false) {
-      Log("Failed to execute mosh-server: %s", s.GetLastError().c_str());
-      return false;
+      thiz->Error("Failed to execute mosh-server: %s",
+          s.GetLastError().c_str());
+      return NULL;
     }
     string buf;
+    thiz->Log("SSHLogin(): About to read data");
     if (c->Read(&buf) == false) {
-      Log("Error reading from remote ssh server: %s", s.GetLastError().c_str());
-      return false;
+      thiz->Error("Error reading from remote ssh server: %s",
+          s.GetLastError().c_str());
+      return NULL;
     }
 
+    thiz->Log("SSHLogin(): Read: '%s'", buf.c_str());
+
     // TODO: Parse the output.
-    return false;
   }
 
   // Pepper POSIX emulation.
@@ -410,15 +429,15 @@ class MoshClientInstance : public pp::Instance {
 int MoshClientInstance::num_instances_ = 0;
 
 ssize_t Terminal::Write(const void *buf, size_t count) {
- string s((const char *)buf, count);
- instance_->Output(MoshClientInstance::TYPE_DISPLAY, s);
- return count;
+  string s((const char *)buf, count);
+  instance_->Output(MoshClientInstance::TYPE_DISPLAY, s);
+  return count;
 }
 
 ssize_t ErrorLog::Write(const void *buf, size_t count) {
- string s((const char *)buf, count);
- instance_->Output(MoshClientInstance::TYPE_ERROR, s);
- return count;
+  string s((const char *)buf, count);
+  instance_->Output(MoshClientInstance::TYPE_ERROR, s);
+  return count;
 }
 
 class MoshClientModule : public pp::Module {
@@ -488,7 +507,24 @@ void Log(const char *format, ...) {
   va_list argp;
   va_start(argp, format);
   if (instance != NULL) {
-    instance->Logv(format, argp);
+    instance->Logv(MoshClientInstance::TYPE_LOG, format, argp);
   }
   va_end(argp);
 }
+
+//
+// Function for SSH logging.
+//
+
+extern "C" {
+void __wrap__ssh_log(int verbosity, const char *function,
+    const char *format, ...) {
+  string f = string("libssh: ") + function + "(): " + format;
+  va_list argp;
+  va_start(argp, format);
+  if (instance != NULL) {
+    instance->Logv(MoshClientInstance::TYPE_LOG, f.c_str(), argp);
+  }
+  va_end(argp);
+}
+} // extern "C"

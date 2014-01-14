@@ -17,20 +17,24 @@ OUTDIR:=app
 PROJECT:=$(OUTDIR)/mosh_client
 CXX_SOURCES:=\
 	mosh_nacl.cc \
-	ssh.cc \
 	pepper_posix.cc \
 	pepper_posix_native_udp.cc \
+	pepper_posix_native_tcp.cc \
 	pepper_posix_selector.cc \
+	pepper_posix_tcp.cc \
 	pepper_posix_udp.cc \
-	pepper_wrapper.cc
+	pepper_wrapper.cc \
+	ssh.cc
 
 CXX_HEADERS:=\
-	ssh.h \
 	pepper_posix.h \
 	pepper_posix_selector.h \
 	pepper_posix_native_udp.h \
+	pepper_posix_native_tcp.h \
+	pepper_posix_tcp.h \
 	pepper_posix_udp.h \
-	pepper_wrapper.h
+	pepper_wrapper.h \
+	ssh.h
 
 OBJECTS:=\
 	build/ARCH/src/frontend/mosh-client-nacl.o \
@@ -62,7 +66,7 @@ CXX:=$(TC_PATH)/bin/i686-nacl-g++
 OBJCOPY:=$(TC_PATH)/bin/i686-nacl-objcopy
 
 # Project Build flags
-override LDFLAGS+=-Xlinker --wrap=dup -lppapi_cpp -lppapi -lz -lssl -lncurses -lprotobuf -lcrypto -lglibc-compat
+override LDFLAGS+=-Xlinker --wrap=dup -Xlinker --wrap=_ssh_log -lppapi_cpp -lppapi -lz -lssl -lncurses -lprotobuf -lcrypto -lglibc-compat
 # Add this linker flag to build statically:
 	#-static -T $(TC_PATH)/x86_64-nacl/lib/ldscripts/elf64_nacl.x.static
 #override WARNINGS+=-Wno-long-long -Wall -Wswitch-enum -Werror

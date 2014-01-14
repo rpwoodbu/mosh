@@ -44,7 +44,7 @@ int NativeUDP::Bind(const PP_NetAddress_IPv4 &address) {
   pp::NetAddress net_address(instance_handle_, address);
   pp::Var string_address = net_address.DescribeAsString(true);
   if (string_address.is_undefined()) {
-    fprintf(stderr, "NativeUDP::Bind() Address is bogus.\n");
+    Log("NativeUDP::Bind() Address is bogus.");
     // TODO: Return something appropriate.
     return false;
   }
@@ -67,7 +67,7 @@ ssize_t NativeUDP::Send(
     memset(&any_address, 0, sizeof(any_address));
     int result = Bind(any_address);
     if (result != 0) {
-      fprintf(stderr, "NativeUDP::Send(): Bind failed with %d\n", result);
+      Log("NativeUDP::Send(): Bind failed with %d", result);
       return 0;
     }
   }
@@ -84,8 +84,7 @@ void NativeUDP::StartReceive(int32_t unused) {
       receive_buffer_, sizeof(receive_buffer_),
       factory_.NewCallbackWithOutput(&NativeUDP::Received));
   if (result != PP_OK_COMPLETIONPENDING) {
-    fprintf(stderr,
-        "NativeUDP::StartReceive(): RecvFrom returned %d\n", result);
+    Log("NativeUDP::StartReceive(): RecvFrom returned %d", result);
     // TODO: Perhaps crash here?
   }
 }
@@ -93,15 +92,14 @@ void NativeUDP::StartReceive(int32_t unused) {
 // Received is the callback result of StartReceive().
 void NativeUDP::Received(int32_t result, const pp::NetAddress &address) {
   if (result < 0) {
-    fprintf(stderr,
-        "NativeUDP::Received(%d, ...): Negative result; bailing.\n", result);
+    Log("NativeUDP::Received(%d, ...): Negative result; bailing.", result);
     return;
   }
 
   PP_NetAddress_IPv4 ipv4_addr;
   if (!address.DescribeAsIPv4Address(&ipv4_addr)) {
     // TODO: Implement IPv6 support, once mosh itself supports it.
-    fprintf(stderr, "NativeUDP::Received(): Failed to convert address.\n");
+    Log("NativeUDP::Received(): Failed to convert address.");
     return;
   }
 

@@ -54,7 +54,8 @@ void Selector::Notify() {
 }
 
 vector<Target*> Selector::Select(
-    const vector<Target*> &targets, const struct timespec *timeout) {
+    const vector<Target*> &read_targets, const vector<Target*> &write_targets,
+    const struct timespec *timeout) {
   // Calculate absolute time for timeout. This should be done ASAP to reduce
   // the chances of this method not returning by the timeout specified. There
   // are no guarantees, of course.
@@ -64,7 +65,7 @@ vector<Target*> Selector::Select(
   abstime.tv_nsec += timeout->tv_nsec;
 
   // Check if any data is available.
-  vector<Target*> result = HasData(targets);
+  vector<Target*> result = HasData(read_targets, write_targets);
   if (result.size() > 0) {
     // Data available now; return immediately.
     return result;
@@ -76,14 +77,21 @@ vector<Target*> Selector::Select(
   pthread_mutex_unlock(&notify_mutex_);
 
   // Must check again to see who has data.
-  return HasData(targets);
+  return HasData(read_targets, write_targets);
 }
 
-const vector<Target*> Selector::HasData(const vector<Target*> &targets) {
+const vector<Target*> Selector::HasData(
+    const vector<Target*> &read_targets, const vector<Target*> &write_targets) {
   vector<Target*> result;
-  for (vector<Target*>::const_iterator t = targets.begin();
-      t != targets.end(); ++t) {
-    if ((*t)->has_data()) {
+  for (vector<Target*>::const_iterator t = read_targets.begin();
+      t != read_targets.end(); ++t) {
+    if ((*t)->has_read_data()) {
+      result.push_back(*t);
+    }
+  }
+  for (vector<Target*>::const_iterator t = write_targets.begin();
+      t != write_targets.end(); ++t) {
+    if ((*t)->has_write_data()) {
       result.push_back(*t);
     }
   }
@@ -94,13 +102,26 @@ Target::~Target() {
   selector_->Deregister(this);
 }
 
-void Target::Update(bool has_data) {
-  if (has_data == has_data_) {
+void Target::UpdateRead(bool has_data) {
+  if (has_data == has_read_data_) {
     // No state change; do nothing.
     return;
   }
 
-  has_data_ = has_data;
+  has_read_data_ = has_data;
+  if (has_data == true) {
+    // Only notify if we now have data.
+    selector_->Notify();
+  }
+}
+
+void Target::UpdateWrite(bool has_data) {
+  if (has_data == has_write_data_) {
+    // No state change; do nothing.
+    return;
+  }
+
+  has_write_data_ = has_data;
   if (has_data == true) {
     // Only notify if we now have data.
     selector_->Notify();

@@ -43,8 +43,6 @@ UDP::UDP() {
 }
 
 UDP::~UDP() {
-  delete target_;
-
   // There really shouldn't be another thread actively involved at destruction
   // time, but getting the lock nonetheless.
   pthread_mutex_lock(&packets_lock_);
@@ -66,13 +64,13 @@ ssize_t UDP::Receive(struct ::msghdr *message, int flags) {
   }
   struct ::msghdr *latest = packets_.front();
   packets_.pop_front();
-  target_->Update(packets_.size() > 0);
+  target_->UpdateRead(packets_.size() > 0);
   pthread_mutex_unlock(&packets_lock_);
 
   if (message->msg_namelen >= latest->msg_namelen) {
     memcpy(message->msg_name, latest->msg_name, latest->msg_namelen);
   } else {
-    fprintf(stderr, "UDP::Receive(): msg_namelen too short.\n");
+    Log("UDP::Receive(): msg_namelen too short.");
   }
 
   assert(latest->msg_iovlen == 1); // For simplicity, as this is internal.
@@ -96,19 +94,19 @@ void UDP::AddPacket(struct ::msghdr *message) {
   pthread_mutex_lock(&packets_lock_);
   packets_.push_back(message);
   pthread_mutex_unlock(&packets_lock_);
-  target_->Update(true);
+  target_->UpdateRead(true);
 }
 
 ssize_t StubUDP::Send(
     const vector<char> &buf, int flags, const PP_NetAddress_IPv4 &addr) {
-  fprintf(stderr, "StubUDP::Send(): size=%d\n", buf.size());
-  fprintf(stderr, "StubUDP::Send(): Pretending we received something.\n");
+  Log("StubUDP::Send(): size=%d", buf.size());
+  Log("StubUDP::Send(): Pretending we received something.");
   AddPacket(NULL);
   return buf.size();
 }
 
 int StubUDP::Bind(const PP_NetAddress_IPv4 &address) {
-  fprintf(stderr, "StubBind()\n");
+  Log("StubBind()");
   return 0;
 }
 

@@ -13,6 +13,7 @@
   "permissions": [
     {"socket": [
       "resolve-host",
+      "tcp-connect",
       "udp-bind",
       "udp-send-to"
     ]},

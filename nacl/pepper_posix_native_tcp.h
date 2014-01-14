@@ -15,51 +15,54 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-#ifndef PEPPER_POSIX_NATIVE_UDP_HPP
-#define PEPPER_POSIX_NATIVE_UDP_HPP
+#ifndef PEPPER_POSIX_NATIVE_TCP_HPP
+#define PEPPER_POSIX_NATIVE_TCP_HPP
 
-#include "pepper_posix_udp.h"
+#include "pepper_posix_tcp.h"
 
 #include "ppapi/cpp/instance_handle.h"
-#include "ppapi/cpp/udp_socket.h"
+#include "ppapi/cpp/tcp_socket.h"
 #include "ppapi/utility/completion_callback_factory.h"
 
-const int UDP_RECEIVE_BUFFER_SIZE = 1500; // Typical MTU.
+const int TCP_RECEIVE_BUFFER_SIZE = 64*1024; // 64 kB, a decent window size.
 
 namespace PepperPOSIX {
 
-// NativeUDP implements UDP using the native Pepper UDPSockets API.
-class NativeUDP : public UDP {
+// NativeTCP implements TCP using the native Pepper TCPSockets API.
+class NativeTCP : public TCP {
  public:
-  NativeUDP(const pp::InstanceHandle &instance_handle);
-  virtual ~NativeUDP();
+  NativeTCP(const pp::InstanceHandle &instance_handle);
+  virtual ~NativeTCP();
 
   // Bind replaces bind().
   virtual int Bind(const PP_NetAddress_IPv4 &address);
 
-  // Send replaces sendto. Usage is similar, but tweaked for C++.
-  virtual ssize_t Send(
-      const vector<char> &buf, int flags,
-      const PP_NetAddress_IPv4 &address);
+  // Connect replaces connect().
+  virtual int Connect(const PP_NetAddress_IPv4 &address);
+
+  // Send replaces send().
+  virtual ssize_t Send(const void *buf, size_t count, int flags);
 
   // Close replaces close().
   virtual int Close();
 
  private:
-  void StartReceive(int32_t unused);
-  void Received(int32_t result, const pp::NetAddress &address);
+  void ConnectOnMainThread(int32_t unused);
+  void Connected(int32_t result);
+  void StartReceive();
+  void Received(int32_t result);
 
-  pp::UDPSocket *socket_;
-  bool bound_;
+  pp::TCPSocket *socket_;
   const pp::InstanceHandle &instance_handle_;
-  char receive_buffer_[UDP_RECEIVE_BUFFER_SIZE];
-  pp::CompletionCallbackFactory<NativeUDP> factory_;
+  char receive_buffer_[TCP_RECEIVE_BUFFER_SIZE];
+  pp::CompletionCallbackFactory<NativeTCP> factory_;
+  pp::NetAddress address_;
 
   // Disable copy and assignment.
-  NativeUDP(const NativeUDP&);
-  NativeUDP &operator=(const NativeUDP&);
+  NativeTCP(const NativeTCP&);
+  NativeTCP &operator=(const NativeTCP&);
 };
 
 } // namespace PepperPOSIX
 
-#endif // PEPPER_POSIX_NATIVE_UDP_HPP
+#endif // PEPPER_POSIX_NATIVE_TCP_HPP

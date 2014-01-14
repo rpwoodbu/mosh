@@ -42,7 +42,6 @@ namespace PepperPOSIX {
 // other methods; no other thread safety is provided.
 class UDP : public File {
  public:
-  // UDP constructs with a Target, from Selector::GetTarget().
   UDP();
   virtual ~UDP();
 
