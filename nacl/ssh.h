@@ -144,9 +144,9 @@ class Channel : public ResultCode {
   // Execute the command. Analog to ssh_channel_request_exec().
   bool Execute(const string &command);
 
-  // Read the whole stdout contents from the remote side. Bring your own
-  // string.
-  bool Read(string *output);
+  // Read the whole stdout/stderr contents from the remote side. Bring your
+  // own strings. Set to NULL if you don't care about one or the other.
+  bool Read(string *out, string *err);
 
  private:
   // Opens a session. This is private because it is handled automatically, and

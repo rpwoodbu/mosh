@@ -120,21 +120,38 @@ bool Channel::Execute(const string &command) {
   return ParseCode(ssh_channel_request_exec(c_, command.c_str()));
 }
 
-bool Channel::Read(string *output) {
+bool Channel::Read(string *out, string *err) {
   if (session_open_ == false) {
     return false;
   }
   // Nasty hack to avoid compiler warning due to type mismatch in libssh.
   const unsigned int ssh_error = (unsigned int)SSH_ERROR;
   char buffer[256];
+
+  // First read all of stdout.
   unsigned int bytes_read = 1; // Prime the pump.
-  while (bytes_read > 0 && bytes_read != ssh_error) {
-    bytes_read = ssh_channel_read(c_, buffer, sizeof(buffer), 0);
-    output->append(buffer, bytes_read);
+  if (out != NULL) {
+    while (bytes_read > 0 && bytes_read != ssh_error) {
+      bytes_read = ssh_channel_read(c_, buffer, sizeof(buffer), 0);
+      out->append(buffer, bytes_read);
+    }
+    if (bytes_read == ssh_error) {
+      return false;
+    }
   }
-  if (bytes_read == ssh_error) {
-    return false;
+
+  // Now read all of stderr.
+  if (err != NULL) {
+    bytes_read = 1; // Prime the pump.
+    while (bytes_read > 0 && bytes_read != ssh_error) {
+      bytes_read = ssh_channel_read(c_, buffer, sizeof(buffer), 1);
+      err->append(buffer, bytes_read);
+    }
+    if (bytes_read == ssh_error) {
+      return false;
+    }
   }
+
   return true;
 }
 

@@ -373,8 +373,9 @@ class MoshClientInstance : public pp::Instance {
       return NULL;
     }
     // TODO: This _really_ needs to be more secure.
-    thiz->Log("Fingerprint of remote ssh host (MD5): %s",
-        s.GetPublicKey()->MD5().c_str());
+    thiz->Output(TYPE_DISPLAY,
+        "Fingerprint of remote ssh host (MD5): " +
+        s.GetPublicKey()->MD5() + "\r\n");
     // TODO: Should probably prompt the user for a password interactively.
     if (s.AuthUsingPassword(thiz->ssh_password_) == false) {
       thiz->Error("ssh authentication failed: %s", s.GetLastError().c_str());
@@ -389,15 +390,16 @@ class MoshClientInstance : public pp::Instance {
           s.GetLastError().c_str());
       return NULL;
     }
-    string buf;
+    string out, err;
     thiz->Log("SSHLogin(): About to read data");
-    if (c->Read(&buf) == false) {
+    if (c->Read(&out, &err) == false) {
       thiz->Error("Error reading from remote ssh server: %s",
           s.GetLastError().c_str());
       return NULL;
     }
 
-    thiz->Log("SSHLogin(): Read: '%s'", buf.c_str());
+    thiz->Log("SSHLogin(): stdout: '%s'", out.c_str());
+    thiz->Log("SSHLogin(): stderr: '%s'", err.c_str());
 
     // TODO: Parse the output.
   }
