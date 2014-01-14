@@ -117,6 +117,11 @@ bool Channel::Execute(const string &command) {
   if (OpenSession() == false) {
     return false;
   }
+  // TODO: Make PTY optional.
+  bool result = ParseCode(ssh_channel_request_pty(c_));
+  if (result == false) {
+    return false;
+  }
   return ParseCode(ssh_channel_request_exec(c_, command.c_str()));
 }
 
