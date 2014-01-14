@@ -61,8 +61,10 @@ vector<Target*> Selector::Select(
   // are no guarantees, of course.
   struct timespec abstime;
   clock_gettime(CLOCK_REALTIME, &abstime);
-  abstime.tv_sec += timeout->tv_sec;
-  abstime.tv_nsec += timeout->tv_nsec;
+  if (timeout != NULL) {
+    abstime.tv_sec += timeout->tv_sec;
+    abstime.tv_nsec += timeout->tv_nsec;
+  }
 
   // Check if any data is available.
   vector<Target*> result = HasData(read_targets, write_targets);
@@ -73,7 +75,11 @@ vector<Target*> Selector::Select(
 
   // Wait for a target to have data.
   pthread_mutex_lock(&notify_mutex_);
-  pthread_cond_timedwait(&notify_cv_, &notify_mutex_, &abstime);
+  if (timeout == NULL) {
+    pthread_cond_wait(&notify_cv_, &notify_mutex_);
+  } else {
+    pthread_cond_timedwait(&notify_cv_, &notify_mutex_, &abstime);
+  }
   pthread_mutex_unlock(&notify_mutex_);
 
   // Must check again to see who has data.
