@@ -47,23 +47,29 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
       <table>
         <tr>
           <td>Mode:</td>
-          <td><input name="mode" type="radio" value="ssh" checked>SSH</input>
-            <input name="mode" type="radio" value="manual">Manual</input></td>
+          <td>
+            <label>
+              <input id="ssh-mode" name="mode" type="radio" value="ssh" checked>SSH</input>
+            </label>
+            <label>
+              <input id="manual-mode" name="mode" type="radio" value="manual">Manual</input>
+            </label>
+          </td>
         </tr>
-        </tr>
-          <td>Username (ssh mode):</td>
+        <tr id="username-row" hidden="true">
+          <td>Username:</td>
           <td><input id="user" type="text" autofocus></td>
         </tr>
         <tr>
           <td>Hostname or IP address:</td>
           <td><input id="addr" type="text"></td>
         </tr>
+          <td id="credential-label"></td>
+          <td><input id="key" type="password"></td>
+        </tr>
         <tr>
           <td>Port number:</td>
           <td><input id="port" type="text"></td>
-        </tr>
-          <td>MOSH_KEY / password:</td>
-          <td><input id="key" type="password"></td>
         </tr>
       </table>
       <input id="connect" type="submit" value="Connect">
@@ -71,16 +77,26 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     <h3>Instructions</h3>
     <p>
-    First manually ssh to the remote machine and run 'mosh-server'.
-    It will print the key and the port number; enter those into this form,
-    as well as the IP address (not the hostname) of the remote machine,
-    and click 'Connect'. 'mosh-server' gives you about a minute to do this
-    before giving up and exiting. You can close your ssh session once
+    <strong>NEW!</strong>
+    Mosh Client for Chrome now supports ssh-based connection setup! Just fill
+    in the fields, and just like the "mosh" command, an ssh connection will be
+    made to the server to establish trust, start the mosh-server, and get the
+    encryption key. Right now, only password auth is supported.
+    <p>
+    Should you need to setup the connection manually (e.g., cannot use password
+    auth), choose "manual" mode. Then manually ssh to the remote machine and
+    run 'mosh-server'. It will print the key and the port number; enter those
+    into this form, as well as the IP address (not the hostname) of the remote
+    machine, and click 'Connect'. 'mosh-server' gives you about a minute to do
+    this before giving up and exiting. You can close your ssh session once
     'mosh-server' is running.
+
 
     <h3>Known issues</h3>
     <p>
     <ul>
+      <li>ssh fingerprint goes by too fast, with no option to confirm.
+      <li>Only ssh password auth is currently supported.
       <li>Too easy to close the window by mistake.
       <li>x86_32 port is built with --disable-hardening, which reduces
         security somewhat.

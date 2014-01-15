@@ -18,8 +18,13 @@
 window.onload = function() {
   var connectButton = document.querySelector('#connect');
   connectButton.onclick = onConnectClick;
+  var sshModeButton = document.querySelector('#ssh-mode');
+  sshModeButton.onchange = updateMode;
+  var manualModeButton = document.querySelector('#manual-mode');
+  manualModeButton.onchange = updateMode;
   var form = document.querySelector('#args');
   form.onsubmit = function() { return false; };
+  updateMode();
 };
 
 function execMosh() {
@@ -56,6 +61,23 @@ function execMosh() {
 function onConnectClick(e) {
   lib.init(execMosh, console.log.bind(console));
 };
+
+function updateMode(e) {
+  var sshModeButton = document.querySelector('#ssh-mode');
+  var portField = document.querySelector('#port');
+  var usernameRow = document.querySelector('#username-row');
+  var credentialLabel = document.querySelector('#credential-label');
+
+  if (sshModeButton.checked) {
+    portField.value = 22;
+    usernameRow.hidden = false;
+    credentialLabel.innerText = "Password:";
+  } else {
+    portField.value = 60001;
+    usernameRow.hidden = true;
+    credentialLabel.innerText = "MOSH_KEY:";
+  }
+}
 
 var mosh = {};
 
