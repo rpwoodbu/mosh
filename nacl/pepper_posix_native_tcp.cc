@@ -60,9 +60,6 @@ int NativeTCP::Connect(const PP_NetAddress_IPv4 &address) {
     // TODO: Return something appropriate.
     return false;
   }
-  Log("NativeTCP::Connect(): Connecting to %s",
-      string_address.AsString().c_str());
-
   // API calls need to be done on the main thread.
   pp::Module::Get()->core()->CallOnMainThread(
       0, factory_.NewCallback(&NativeTCP::ConnectOnMainThread));
@@ -79,20 +76,19 @@ void NativeTCP::ConnectOnMainThread(int32_t unusued) {
     // TODO: Perhaps crash here?
   }
   // TODO: Flesh out error mapping.
-  Log("NativeTCP::ConnectOnMainThread(): Returning normally.");
 }
 
 void NativeTCP::Connected(int32_t result) {
-  Log("NativeTCP::Connected(%d)", result);
   if (result == PP_OK) {
-    Log("NativeTCP::Connected(): PP_OK", result);
     target_->UpdateWrite(true);
     StartReceive();
+    return;
   }
+  // TODO: Handle connection failures more appropraitely.
+  Log("NativeTCP::Connected(): Connection failed; result: %d", result);
 }
 
 ssize_t NativeTCP::Send(const void *buf, size_t count, int flags) {
-  Log("NativeTCP::Send()");
   if (flags != 0) {
     Log("NativeTCP::Send(): Unsupported flag: 0x%x", flags);
   }
@@ -106,19 +102,17 @@ ssize_t NativeTCP::Send(const void *buf, size_t count, int flags) {
 
 // StartReceive prepares to receive more data, and returns without blocking.
 void NativeTCP::StartReceive() {
-  Log("NativeTCP::StartReceive()");
   int32_t result = socket_->Read(
       receive_buffer_, sizeof(receive_buffer_),
       factory_.NewCallback(&NativeTCP::Received));
   if (result != PP_OK_COMPLETIONPENDING) {
-    Log("NativeTCP::StartReceive(): RecvFrom returned %d", result);
+    Log("NativeTCP::StartReceive(): RecvFrom unexpectedly returned %d", result);
     // TODO: Perhaps crash here?
   }
 }
 
 // Received is the callback result of StartReceive().
 void NativeTCP::Received(int32_t result) {
-  Log("NativeTCP::Received(%d)", result);
   if (result < 0) {
     Log("NativeTCP::Received(%d, ...): Negative result; bailing.", result);
     return;

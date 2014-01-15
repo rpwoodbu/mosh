@@ -34,10 +34,8 @@ TCP::~TCP() {
 }
 
 ssize_t TCP::Receive(void *buf, size_t count, int flags) {
-  Log("TCP::Receive()");
   bool peek = false;
   if (flags & MSG_PEEK) {
-    Log("TCP::Receive(): Peek flag set");
     peek = true;
     flags &= ~MSG_PEEK;
   }
@@ -73,38 +71,18 @@ ssize_t TCP::Receive(void *buf, size_t count, int flags) {
   }
   pthread_mutex_unlock(&buffer_lock_);
 
-  char outbuf[4096];
-  if (read_count < sizeof(outbuf) - 1) {
-    strncpy(outbuf, (const char *)buf, read_count);
-    outbuf[read_count] = 0;
-    Log("TCP::Receive(): '%s'", outbuf);
-  } else {
-    Log("TCP::Receive(): Big");
-  }
-
   return read_count;
 }
 
 ssize_t TCP::Read(void *buf, size_t count) {
-  Log("TCP::Read()");
   return Receive(buf, count, 0);
 }
 
 ssize_t TCP::Write(const void *buf, size_t count) {
-  Log("TCP::Write()");
   return Send(buf, count, 0);
 }
 
 void TCP::AddData(const void *buf, size_t count) {
-  char outbuf[4096];
-  if (count < sizeof(outbuf) - 1) {
-    strncpy(outbuf, (const char *)buf, count);
-    outbuf[count] = 0;
-    Log("TCP::AddData(): '%s'", outbuf);
-  } else {
-    Log("TCP::AddDate(): Big");
-  }
-
   pthread_mutex_lock(&buffer_lock_);
   const char *cbuf = (const char *)buf;
   for (; count > 0; --count) {

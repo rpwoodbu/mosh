@@ -181,42 +181,35 @@ int POSIX::PSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfd
   }
   vector<Target *> ready_targets = selector_.Select(
       read_targets, write_targets, timeout);
-  Log("POSIX::PSelect(): Sizes of r, w, ready targets: %d, %d, %d",
-      read_targets.size(), write_targets.size(), ready_targets.size());
 
   for (vector<Target *>::iterator i = ready_targets.begin();
       i != ready_targets.end();
       ++i) {
     int fd = (*i)->id();
-    Log("POSIX::PSelect(): Checking fd %d", fd);
     File *file = files_[fd];
 
     // TODO: Consider getting rid of these casts, as
     // has_read_data/has_write_data may be all we need (except for signals).
     Reader *reader = dynamic_cast<Reader *>(file);
     if (reader != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
-      Log("POSIX::PSelect(): fd %d readable", fd);
       FD_SET(fd, &new_readfds);
       ++result;
       continue;
     }
     Writer *writer = dynamic_cast<Writer *>(file);
     if (writer != NULL && FD_ISSET(fd, writefds) && (*i)->has_write_data()) {
-      Log("POSIX::PSelect(): fd %d writeable", fd);
       FD_SET(fd, &new_writefds);
       ++result;
       continue;
     }
     UDP *udp = dynamic_cast<UDP *>(file);
     if (udp != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
-      Log("POSIX::PSelect(): UDP fd %d readable", fd);
       FD_SET(fd, &new_readfds);
       ++result;
       continue;
     }
     Signal *signal = dynamic_cast<Signal *>(file);
     if (signal != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
-      Log("POSIX::PSelect(): Signal fd %d readable", fd);
       signal->Handle();
       ++result;
       continue;

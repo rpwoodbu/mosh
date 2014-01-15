@@ -69,8 +69,7 @@ int kill(pid_t pid, int sig) {
   return 0;
 }
 
-// getpid() isn't actually called, but it is annoying to see a linker warning
-// about it not being implemented.
+// Stubbing out getpid() by just returning a bogus PID.
 pid_t getpid(void) {
   Log("getpid()");
   return 0;
@@ -170,15 +169,11 @@ int fclose(FILE *stream) {
   return result;
 }
 
-//
-// Fake getaddrinfo() and friends, as we expect it will always be an IP address
-// and numeric port.
-//
-
+// Fake getaddrinfo(), as we expect it will always be an IP address and numeric
+// port.
 int getaddrinfo(const char *node, const char *service,
     const struct addrinfo *hints,
     struct addrinfo **res) {
-  Log("getaddrinfo(%s, %s, ...)", node, service);
   if (hints->ai_flags & AI_CANONNAME) {
     Log("getaddrinfo(): AI_CANONNAME not implemented.");
     return EAI_FAIL;
@@ -186,9 +181,7 @@ int getaddrinfo(const char *node, const char *service,
 
   // Parse node (aka hostname) as dotted-quad IPv4 address.
   int part[4];
-  sscanf(node, "%d.%d.%d.%d", &part[0], &part[1], &part[2], &part[3]);
-  Log("getaddrinfo(): sscanf came up with: %d.%d.%d.%d",
-      part[0], part[1], part[2], part[3]);
+  sscanf(node, "%3d.%3d.%3d.%3d", &part[0], &part[1], &part[2], &part[3]);
   uint32_t ip_addr = 0;
   for (int i = 0; i < 4; ++i) {
     ip_addr |= part[i] << (8*i);
@@ -216,7 +209,6 @@ int getaddrinfo(const char *node, const char *service,
 }
 
 void freeaddrinfo(struct addrinfo *res) {
-  Log("freeaddrinfo()");
   while (res != NULL) {
     struct addrinfo *last = res;
     delete res->ai_addr;
@@ -237,7 +229,6 @@ char *gai_strerror(int errcode) {
 // There is a pseudo-overload that includes a third param |mode_t|.
 int open(const char *pathname, int flags, ...) {
   // TODO: For now, ignoring |mode_t| param.
-  Log("open(%s, %d, ...)", pathname, flags);
   return GetPOSIX()->Open(pathname, flags, 0);
 }
 
@@ -264,7 +255,6 @@ int close(int fd) {
 }
 
 int socket(int domain, int type, int protocol) {
-  Log("socket(%d, %d, %d)", domain, type, protocol);
   return GetPOSIX()->Socket(domain, type, protocol);
 }
 
@@ -277,7 +267,6 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 // Most socket options aren't supported by PPAPI, so just stubbing out.
 int setsockopt(int sockfd, int level, int optname,
     const void *optval, socklen_t optlen) {
-  Log("setsockopt(%d, %d, %d, ...", sockfd, level, optname);
   return 0;
 }
 
@@ -326,7 +315,6 @@ ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
 }
 
 int fcntl(int fd, int cmd, ...) {
-  Log("fcntl(%d, %d, ...)", fd, cmd);
   va_list argp;
   va_start(argp, cmd);
   int result = GetPOSIX()->FCntl(fd, cmd, argp);
@@ -335,7 +323,6 @@ int fcntl(int fd, int cmd, ...) {
 }
 
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-  Log("connect(%d, ...)", sockfd);
   return GetPOSIX()->Connect(sockfd, addr, addrlen);
 }
 

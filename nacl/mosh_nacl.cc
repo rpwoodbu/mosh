@@ -363,7 +363,6 @@ class MoshClientInstance : public pp::Instance {
 
     setenv("HOME", "dummy", 1); // To satisfy libssh.
     ssh::Session s(thiz->addr_, atoi(thiz->port_), thiz->ssh_user_);
-    s.SetOption(SSH_OPTIONS_LOG_VERBOSITY, SSH_LOG_RARE);
     if (s.Connect() == false) {
       thiz->Error("Could not connect via ssh: %s", s.GetLastError().c_str());
       return NULL;
@@ -378,23 +377,19 @@ class MoshClientInstance : public pp::Instance {
       return NULL;
     }
 
-    thiz->Log("SSHLogin(): About to instantiate channel");
     ssh::Channel *c = s.NewChannel();
-    thiz->Log("SSHLogin(): About to execute command");
     if (c->Execute("mosh-server") == false) {
       thiz->Error("Failed to execute mosh-server: %s",
           s.GetLastError().c_str());
       return NULL;
     }
     string buf;
-    thiz->Log("SSHLogin(): About to read data");
     if (c->Read(&buf, NULL) == false) {
       thiz->Error("Error reading from remote ssh server: %s",
           s.GetLastError().c_str());
       return NULL;
     }
 
-    thiz->Log("SSHLogin(): Read: '%s'", buf.c_str());
     char key[23];
     thiz->port_ = new char[6];
     int result = sscanf(buf.c_str(), "\r\nMOSH CONNECT %5s %22s\r\n",
@@ -404,7 +399,6 @@ class MoshClientInstance : public pp::Instance {
       return NULL;
     }
 
-    thiz->Log("SSHLogin(): Port: '%s' Key: '%s'", thiz->port_, key);
     setenv("MOSH_KEY", key, 1);
     pp::Module::Get()->core()->CallOnMainThread(
         0, thiz->cc_factory_.NewCallback(&MoshClientInstance::LaunchMosh));
@@ -528,6 +522,9 @@ void Log(const char *format, ...) {
 extern "C" {
 void __wrap__ssh_log(int verbosity, const char *function,
     const char *format, ...) {
+  if (verbosity > SSH_LOG_WARNING) {
+    return;
+  }
   string f = string("libssh: ") + function + "(): " + format;
   va_list argp;
   va_start(argp, format);
