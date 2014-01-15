@@ -260,7 +260,7 @@ class MoshClientInstance : public pp::Instance {
 
   virtual bool Init(uint32_t argc, const char *argn[], const char *argv[]) {
     bool got_addr = false;
-    string secret;
+    const char *secret;
     for (int i = 0; i < argc; ++i) {
       string name = argn[i];
       int len = strlen(argv[i]) + 1;
@@ -295,9 +295,11 @@ class MoshClientInstance : public pp::Instance {
         Log("Must provide a username for ssh mode.");
         return false;
       }
-      ssh_password_ = secret;
+      strncpy(ssh_password_, secret, sizeof(ssh_password_));
+      // Ensure it is null-terminated.
+      ssh_password_[sizeof(ssh_password_)-1] = 0;
     } else {
-      setenv("MOSH_KEY", secret.c_str(), 1);
+      setenv("MOSH_KEY", secret, 1);
     }
 
     // Setup communications.
@@ -374,12 +376,12 @@ class MoshClientInstance : public pp::Instance {
     // TODO: Should probably prompt the user for a password interactively.
     if (s.AuthUsingPassword(thiz->ssh_password_) == false) {
       thiz->Error("ssh authentication failed: %s", s.GetLastError().c_str());
-      // For safety, clear the password.
-      thiz->ssh_password_.clear();
+      // For safety, zero the password.
+      memset(thiz->ssh_password_, 0, sizeof(thiz->ssh_password_));
       return NULL;
     }
-    // For safety, clear the password.
-    thiz->ssh_password_.clear();
+    // For safety, zero the password.
+    memset(thiz->ssh_password_, 0, sizeof(thiz->ssh_password_));
 
     ssh::Channel *c = s.NewChannel();
     if (c->Execute("mosh-server") == false) {
@@ -423,7 +425,8 @@ class MoshClientInstance : public pp::Instance {
   char *port_;
 
   bool ssh_mode_;
-  string ssh_password_;
+  // Using an old-school char[] to ensure a safe lifecycle.
+  char ssh_password_[128];
   string ssh_user_;
 
   pp::InstanceHandle instance_handle_;
