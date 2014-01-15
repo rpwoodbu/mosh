@@ -28,9 +28,11 @@
 
 namespace PepperPOSIX {
 
+const int SIGNAL_FD = -1;
+
 POSIX::POSIX(const pp::InstanceHandle &instance_handle,
     Reader *std_in, Writer *std_out, Writer *std_err, Signal *signal)
-  : instance_handle_(instance_handle) {
+  : instance_handle_(instance_handle), signal_(signal) {
   files_[STDIN_FILENO] = std_in;
   if (std_in != NULL) {
     std_in->target_ = selector_.NewTarget(STDIN_FILENO);
@@ -43,10 +45,10 @@ POSIX::POSIX(const pp::InstanceHandle &instance_handle,
   if (std_err != NULL) {
     std_err->target_ = selector_.NewTarget(STDERR_FILENO);
   }
-  // This file descriptor isn't used, so place it out of the issuance range.
-  files_[-1] = signal;
-  if (signal != NULL) {
-    signal->target_ = selector_.NewTarget(-1);
+  if (signal_ != NULL) {
+    // "Pseudo" file descriptor in Target needs to be set out of issuance
+    // range.
+    signal_->target_ = selector_.NewTarget(SIGNAL_FD);
   }
 }
 
@@ -179,6 +181,12 @@ int POSIX::PSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfd
       write_targets.push_back(files_[fd]->target_);
     }
   }
+
+  // Signal is handled specially.
+  if (signal_ != NULL) {
+    read_targets.push_back(signal_->target_);
+  }
+
   vector<Target *> ready_targets = selector_.Select(
       read_targets, write_targets, timeout);
 
@@ -186,33 +194,20 @@ int POSIX::PSelect(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfd
       i != ready_targets.end();
       ++i) {
     int fd = (*i)->id();
-    File *file = files_[fd];
 
-    // TODO: Consider getting rid of these casts, as
-    // has_read_data/has_write_data may be all we need (except for signals).
-    Reader *reader = dynamic_cast<Reader *>(file);
-    if (reader != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
-      FD_SET(fd, &new_readfds);
-      ++result;
+    // Signal is handled specially.
+    if (fd == SIGNAL_FD && signal_ != NULL && signal_->target_->has_read_data()) {
+      signal_->Handle();
       continue;
     }
-    Writer *writer = dynamic_cast<Writer *>(file);
-    if (writer != NULL && FD_ISSET(fd, writefds) && (*i)->has_write_data()) {
+
+    if (readfds != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
+      FD_SET(fd, &new_readfds);
+      ++result;
+    }
+    if (writefds != NULL && FD_ISSET(fd, writefds) && (*i)->has_write_data()) {
       FD_SET(fd, &new_writefds);
       ++result;
-      continue;
-    }
-    UDP *udp = dynamic_cast<UDP *>(file);
-    if (udp != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
-      FD_SET(fd, &new_readfds);
-      ++result;
-      continue;
-    }
-    Signal *signal = dynamic_cast<Signal *>(file);
-    if (signal != NULL && FD_ISSET(fd, readfds) && (*i)->has_read_data()) {
-      signal->Handle();
-      ++result;
-      continue;
     }
   }
 

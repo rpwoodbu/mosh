@@ -148,6 +148,7 @@ class POSIX {
   map<int, File *> files_;
   // Map of registered files and their File factories.
   map<string, File *(*)()> factories_;
+  Signal *signal_;
   Selector selector_;
   const pp::InstanceHandle &instance_handle_;
 
