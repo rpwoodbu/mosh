@@ -96,8 +96,14 @@ mosh.CommandInstance.prototype.run = function() {
   this.moshNaCl_.setAttribute('port', this.argv_.argString['port']);
   this.moshNaCl_.setAttribute('user', this.argv_.argString['user']);
   this.moshNaCl_.setAttribute('mode', this.argv_.argString['mode']);
+
+  // Delete argv_, as it contains sensitive info.
+  delete this.argv_;
+
   this.moshNaCl_.addEventListener('load', function(e) {
     console.log('Mosh NaCl loaded.');
+    // Remove sensitive argument attributes.
+    window.mosh_client_.moshNaCl_.removeAttribute('key');
   });
   this.moshNaCl_.addEventListener('message', this.onMessage_.bind(this));
   this.moshNaCl_.addEventListener('crash', function(e) {

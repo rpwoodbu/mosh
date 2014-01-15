@@ -374,8 +374,12 @@ class MoshClientInstance : public pp::Instance {
     // TODO: Should probably prompt the user for a password interactively.
     if (s.AuthUsingPassword(thiz->ssh_password_) == false) {
       thiz->Error("ssh authentication failed: %s", s.GetLastError().c_str());
+      // For safety, clear the password.
+      thiz->ssh_password_.clear();
       return NULL;
     }
+    // For safety, clear the password.
+    thiz->ssh_password_.clear();
 
     ssh::Channel *c = s.NewChannel();
     if (c->Execute("mosh-server") == false) {
